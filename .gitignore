@@ -1,0 +1,26 @@
+﻿# Virtual environment & Python caches
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Nuitka / PyInstaller / MSIX build artifacts
+build/
+dist/
+*.build/
+*.dist/
+*.onefile-build/
+msix_staging/
+*.spec
+*.exe
+*.msix
+*.appx
+
+# Local secrets, TLS keys, paired devices & logs
+.remote_mouse/
+*.key
+*.crt
+*.pfx
+*.cer
+*.log
+trusted_devices.json
