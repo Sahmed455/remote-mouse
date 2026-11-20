@@ -7,14 +7,14 @@
   IgnorableNamespaces="uap rescap desktop">
 
   <Identity
-    Name="DevLocal.RemoteMouse"
-    Publisher="CN=00000000-0000-0000-0000-000000000000"
+    Name="DeviLX.RemoteMouseKBServer"
+    Publisher="CN=A7EC737B-6680-4F8B-98DE-1ED41C093A45"
     Version="1.0.0.0"
     ProcessorArchitecture="x64" />
 
   <Properties>
-    <DisplayName>Remote Mouse</DisplayName>
-    <PublisherDisplayName>Remote Mouse Developer</PublisherDisplayName>
+    <DisplayName>Remote MouseKB Server</DisplayName>
+    <PublisherDisplayName>DeviLX</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
 
@@ -32,7 +32,7 @@
       Executable="RemoteMouse.exe"
       EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements
-        DisplayName="Remote Mouse"
+        DisplayName="Remote MouseKB Server"
         Description="Encrypted local-network and USB remote touchpad and keyboard host"
         BackgroundColor="#11151c"
         Square150x150Logo="Assets\Square150x150Logo.png"
@@ -47,7 +47,7 @@
           <desktop:StartupTask
             TaskId="RemoteMouseStartup"
             Enabled="true"
-            DisplayName="Remote Mouse Host" />
+            DisplayName="Remote MouseKB Server" />
         </desktop:Extension>
       </Extensions>
     </Application>
