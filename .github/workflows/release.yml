@@ -21,11 +21,11 @@ jobs:
         with:
           python-version: "3.14"
 
-      - name: Install dependencies and Nuitka
+      - name: Install package and Nuitka
         shell: pwsh
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt Nuitka ordered-set
+          pip install -e ".[build]"
 
       - name: Compile with Nuitka (Standalone)
         shell: pwsh
@@ -34,10 +34,12 @@ jobs:
             --mode=standalone `
             --windows-console-mode=disable `
             --enable-plugin=tk-inter `
+            --include-package=remote_mouse `
             --include-package=uvicorn `
             --include-package=websockets `
             --include-package=pynput `
             --include-package=pystray `
+            --include-data-dir="src\remote_mouse\web=remote_mouse/web" `
             --output-dir="build\nuitka" `
             --output-filename=RemoteMouse.exe `
             --product-name="Remote Mouse" `
@@ -45,13 +47,13 @@ jobs:
             --file-version=1.0.0.0 `
             --product-version=1.0.0.0 `
             --assume-yes-for-downloads `
-            remote_mouse.py
+            run.py
 
       - name: Package ZIP artifact
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path "dist" | Out-Null
-          Move-Item -Path "build\nuitka\remote_mouse.dist" -Destination "dist\RemoteMouse"
+          Move-Item -Path "build\nuitka\run.dist" -Destination "dist\RemoteMouse"
           Compress-Archive -Path "dist\RemoteMouse" -DestinationPath "dist\RemoteMouse-Windows.zip"
 
       - name: Upload Build Artifact

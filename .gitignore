@@ -1,4 +1,4 @@
-﻿# Virtual environment & Python caches
+﻿# Virtual environments & Python caches
 .venv/
 __pycache__/
 *.py[cod]
@@ -24,4 +24,8 @@ msix_staging/
 *.cer
 *.log
 trusted_devices.json
+
+# Editor & OS metadata
 .vscode/
+.DS_Store
+Thumbs.db
