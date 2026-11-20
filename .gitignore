@@ -24,3 +24,4 @@ msix_staging/
 *.cer
 *.log
 trusted_devices.json
+.vscode/
