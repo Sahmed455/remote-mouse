@@ -88,7 +88,13 @@ def ensure_tls_cert(local_ip: str) -> None:
             existing = x509.load_pem_x509_certificate(CERT_FILE.read_bytes())
             san = existing.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
             san_ips = {str(ip) for ip in san.get_values_for_type(x509.IPAddress)}
-            expiry = getattr(existing, "not_valid_after_utc", existing.not_valid_after.replace(tzinfo=timezone.utc))
+            
+            # expiry = getattr(existing, "not_valid_after_utc", existing.not_valid_after.replace(tzinfo=timezone.utc))
+            if hasattr(existing, "not_valid_after_utc"):
+                expiry = existing.not_valid_after_utc
+            else:
+                expiry = existing.not_valid_after.replace(tzinfo=timezone.utc)
+                
             if (local_ip == "127.0.0.1" or local_ip in san_ips) and expiry > now + timedelta(days=7):
                 return
         except Exception:
