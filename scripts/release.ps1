@@ -103,15 +103,15 @@ $updatedPyContent = [regex]::Replace(
 Set-Content -Path $pyprojectFile -Value $updatedPyContent -NoNewline
 Write-Host "[OK] Updated pyproject.toml -> $newSemver" -ForegroundColor Green
 
-# 4. Update AppxManifest.xml
-$manifestContent = Get-Content $manifestFile -Raw
-$updatedManifest = [regex]::Replace(
-    $manifestContent,
-    'Version="[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+"',
-    "Version=`"$newQuadVer`""
-)
-Set-Content -Path $manifestFile -Value $updatedManifest -NoNewline
-Write-Host "[OK] Updated AppxManifest.xml -> $newQuadVer" -ForegroundColor Green
+# 4. Update AppxManifest.xml (XML-aware — only touches Identity.Version)
+[xml]$manifestXml = Get-Content $manifestFile -Raw
+$ns = New-Object Xml.XmlNamespaceManager($manifestXml.NameTable)
+$ns.AddNamespace("pkg", "http://schemas.microsoft.com/appx/manifest/foundation/windows10")
+$identityNode = $manifestXml.SelectSingleNode("//pkg:Identity", $ns)
+if (-not $identityNode) { throw "Could not find <Identity> element in AppxManifest.xml" }
+$identityNode.SetAttribute("Version", $newQuadVer)
+$manifestXml.Save($manifestFile)
+Write-Host "[OK] Updated AppxManifest.xml Identity Version -> $newQuadVer" -ForegroundColor Green
 
 # 5. Extract commits and generate CHANGELOG entry
 # Find the latest git tag, or use git root if none
