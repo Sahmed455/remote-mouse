@@ -1,5 +1,9 @@
 # Changelog
 
+## [v1.1.1.0] - 2026-11-23
+### ?? Bug Fixes
+- restore TargetDeviceFamily MinVersion and use XML-aware version update (5d99f78)
+
 All notable changes to this project will be documented in this file.
 
 ## [v1.1.0.0] - 2026-11-23
