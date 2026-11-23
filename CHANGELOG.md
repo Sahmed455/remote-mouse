@@ -1,10 +1,16 @@
 # Changelog
 
-## [v1.1.1.0] - 2026-11-23
-### ?? Bug Fixes
-- restore TargetDeviceFamily MinVersion and use XML-aware version update (5d99f78)
-
 All notable changes to this project will be documented in this file.
+
+## [v1.2.0.0] - 2026-11-24
+
+### 🚀 Features & Enhancements
+- add Air Mouse gyro mode and fix double-tap drag (2cde90e)
+
+## [v1.1.1.0] - 2026-11-23
+
+### 🐛 Bug Fixes
+- restore TargetDeviceFamily MinVersion and use XML-aware version update (5d99f78)
 
 ## [v1.1.0.0] - 2026-11-23
 
@@ -24,4 +30,3 @@ All notable changes to this project will be documented in this file.
 - add privacy policy for Microsoft Store listing (0397141)
 - set Store display name to Remote MouseKB Server (037c186)
 - finalize modular Nuitka and MSIX packaging pipeline (6c8bf46)
-- add local Nuitka script and GitHub Actions workflow (dedf465)
