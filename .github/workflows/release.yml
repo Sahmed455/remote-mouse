@@ -30,6 +30,14 @@ jobs:
       - name: Compile with Nuitka (Standalone)
         shell: pwsh
         run: |
+          $ver = "1.0.0.0"
+          if ($env:GITHUB_REF -match 'refs/tags/v?(.*)') {
+              $raw = $Matches[1]
+              $parts = $raw.Split(".")
+              while ($parts.Count -lt 4) { $parts += "0" }
+              $ver = ($parts[0..3] -join ".")
+          }
+          Write-Host "Compiling Remote Mouse version: $ver"
           python -m nuitka `
             --mode=standalone `
             --windows-console-mode=disable `
@@ -44,8 +52,8 @@ jobs:
             --output-filename=RemoteMouse.exe `
             --product-name="Remote Mouse" `
             --file-description="Encrypted Remote Mouse and Keyboard Host" `
-            --file-version=1.0.0.0 `
-            --product-version=1.0.0.0 `
+            --file-version=$ver `
+            --product-version=$ver `
             --assume-yes-for-downloads `
             run.py
 

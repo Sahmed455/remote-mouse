@@ -1,5 +1,6 @@
 param(
-    [switch]$DebugStderr
+    [switch]$DebugStderr,
+    [string]$Version
 )
 
 $ErrorActionPreference = "Stop"
@@ -9,6 +10,23 @@ $repoRoot = (Resolve-Path "$PSScriptRoot\..\..").Path
 $python   = Join-Path $repoRoot ".venv\Scripts\python.exe"
 $entry    = Join-Path $repoRoot "run.py"
 $webDir   = Join-Path $repoRoot "src\remote_mouse\web"
+
+# Detect version if not explicitly passed
+if (-not $Version) {
+    $pyproject = Join-Path $repoRoot "pyproject.toml"
+    if (Test-Path $pyproject) {
+        $content = Get-Content $pyproject -Raw
+        if ($content -match 'version\s*=\s*"([^"]+)"') {
+            $rawVer = $matches[1]
+            $parts = $rawVer.Split(".")
+            while ($parts.Count -lt 4) { $parts += "0" }
+            $Version = ($parts[0..3] -join ".")
+        }
+    }
+}
+if (-not $Version) {
+    $Version = "1.0.0.0"
+}
 
 $outDir   = "C:\BuildCache\RemoteMouse\nuitka"
 $distDir  = "C:\BuildCache\RemoteMouse\dist\RemoteMouse"
@@ -38,8 +56,8 @@ $nuitkaArgs = @(
     "--output-filename=RemoteMouse.exe",
     "--product-name=Remote Mouse",
     "--file-description=Encrypted Remote Mouse and Keyboard Host",
-    "--file-version=1.0.0.0",
-    "--product-version=1.0.0.0",
+    "--file-version=$Version",
+    "--product-version=$Version",
     "--assume-yes-for-downloads"
 )
 
