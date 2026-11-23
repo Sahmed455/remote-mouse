@@ -1,6 +1,10 @@
 import asyncio
 import base64
+import json
 import secrets
+import socket
+import struct
+import sys
 from collections.abc import Callable
 from datetime import datetime, timezone
 
@@ -29,6 +33,19 @@ app = FastAPI()
 mouse = MouseController()
 keyboard = KeyboardController()
 _qr_callback: Callable[[], None] | None = None
+
+if sys.platform == "win32":
+    import ctypes
+    _win32_mouse_event = ctypes.windll.user32.mouse_event
+    _win32_get_metric = ctypes.windll.user32.GetSystemMetrics
+    _win32_set_cursor = ctypes.windll.user32.SetCursorPos
+
+    def _fast_relative_move(dx: int, dy: int) -> None:
+        # MOUSEEVENTF_MOVE = 0x0001 (Zero GetCursorPos overhead)
+        _win32_mouse_event(0x0001, dx, dy, 0, 0)
+else:
+    def _fast_relative_move(dx: int, dy: int) -> None:
+        mouse.move(dx, dy)
 
 SPECIAL_KEYS = {
     "backspace": Key.backspace,
@@ -207,6 +224,17 @@ async def get_wifi_handoff(device_id: str = ""):
 @app.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket):
     await ws.accept()
+
+    # Disable Nagle's buffering algorithm on Wi-Fi TCP sockets
+    try:
+        transport = ws.scope.get("transport")
+        if transport:
+            sock = transport.get_extra_info("socket")
+            if sock:
+                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+    except Exception as e:
+        logger.debug("Could not set TCP_NODELAY: %s", e)
+
     device_id = await authenticate_client(ws)
     if not device_id:
         return
@@ -214,19 +242,45 @@ async def websocket_endpoint(ws: WebSocket):
     held_buttons: set[Button] = set()
     try:
         while True:
-            msg = await ws.receive_json()
+            raw = await ws.receive()
+            raw_type = raw.get("type")
+            if raw_type == "websocket.disconnect":
+                break
+
+            # Fast-path for binary motion packets (5 bytes: 0x01, int16 dx, int16 dy)
+            data_bytes = raw.get("bytes")
+            if data_bytes:
+                if len(data_bytes) == 5 and data_bytes[0] == 0x01:
+                    dx, dy = struct.unpack_from("<hh", data_bytes, 1)
+                    if dx or dy:
+                        _fast_relative_move(dx, dy)
+                elif len(data_bytes) == 5 and data_bytes[0] == 0x02:
+                    dy = struct.unpack_from("<f", data_bytes, 1)[0]
+                    mouse.scroll(0, dy)
+                continue
+
+            text = raw.get("text")
+            if not text:
+                continue
+
+            msg = json.loads(text)
             t = msg.get("type")
 
             if t == "move":
-                mouse.move(msg.get("dx", 0), msg.get("dy", 0))
+                dx = int(msg.get("dx", 0))
+                dy = int(msg.get("dy", 0))
+                if dx or dy:
+                    _fast_relative_move(dx, dy)
             elif t == "center_cursor":
                 try:
-                    import ctypes
-                    w = ctypes.windll.user32.GetSystemMetrics(0)
-                    h = ctypes.windll.user32.GetSystemMetrics(1)
-                    target = (w // 2, h // 2)
-                    mouse.position = target
-                    ctypes.windll.user32.SetCursorPos(target[0], target[1])
+                    if sys.platform == "win32":
+                        w = _win32_get_metric(0)
+                        h = _win32_get_metric(1)
+                        target = (w // 2, h // 2)
+                        mouse.position = target
+                        _win32_set_cursor(target[0], target[1])
+                    else:
+                        mouse.position = (960, 540)
                 except Exception as e:
                     logger.warning("Could not center cursor: %s", e)
             elif t == "scroll":

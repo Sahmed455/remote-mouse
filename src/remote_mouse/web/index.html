@@ -709,6 +709,7 @@
 
       const proto = location.protocol === "https:" ? "wss" : "ws";
       ws = new WebSocket(`${proto}://${location.host}/ws`);
+      ws.binaryType = "arraybuffer";
 
       ws.onmessage = async (event) => {
         let msg;
@@ -817,12 +818,36 @@
       }
     })();
 
+    // High-performance binary motion transmission (5 bytes: 0x01, int16 dx, int16 dy)
+    const moveBuffer = new ArrayBuffer(5);
+    const moveView = new DataView(moveBuffer);
+    moveView.setUint8(0, 0x01);
+
+    const sendMoveBinary = (dx, dy) => {
+      if (ws && ws.readyState === WebSocket.OPEN && authenticated) {
+        moveView.setInt16(1, Math.max(-32768, Math.min(32767, dx)), true);
+        moveView.setInt16(3, Math.max(-32768, Math.min(32767, dy)), true);
+        ws.send(moveBuffer);
+      }
+    };
+
     let pendingDx = 0, pendingDy = 0, pendingScroll = 0;
+    let lastFastFlush = 0;
+
     function flushMotion() {
-      const ix = Math.trunc(pendingDx);
-      const iy = Math.trunc(pendingDy);
+      // Wi-Fi Backpressure Guard:
+      // Only hold back if actual network queue is backing up (> 512 bytes).
+      // A threshold of > 0 dropped 50% of frames due to normal socket pipeline latency.
+      if (ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount > 512) {
+        requestAnimationFrame(flushMotion);
+        return;
+      }
+
+      // Sub-pixel rounding with error diffusion (eliminates 1.0px stepping deadzone):
+      const ix = Math.round(pendingDx);
+      const iy = Math.round(pendingDy);
       if (ix !== 0 || iy !== 0) {
-        send({ type: "move", dx: ix, dy: iy });
+        sendMoveBinary(ix, iy);
         pendingDx -= ix;
         pendingDy -= iy;
       }
@@ -833,6 +858,23 @@
       requestAnimationFrame(flushMotion);
     }
     requestAnimationFrame(flushMotion);
+
+    // Fast-path flush for touchmove & orientation to bypass 60Hz display vsync delays
+    function tryFastFlush() {
+      const now = performance.now();
+      if (now - lastFastFlush >= 8) { // Up to 125Hz high-frequency flush
+        lastFastFlush = now;
+        if (ws && ws.readyState === WebSocket.OPEN && authenticated && ws.bufferedAmount <= 512) {
+          const ix = Math.round(pendingDx);
+          const iy = Math.round(pendingDy);
+          if (ix !== 0 || iy !== 0) {
+            sendMoveBinary(ix, iy);
+            pendingDx -= ix;
+            pendingDy -= iy;
+          }
+        }
+      }
+    }
 
     // Gestures & Double-tap drag timing
     const DOUBLE_TAP_MS = 360;
@@ -895,10 +937,9 @@
 
       // Tremor filter deadzone (filters microscopic resting hand tremor):
       if (mag < dz) {
-        smoothedDx *= 0.5;
-        smoothedDy *= 0.5;
-        if (Math.abs(smoothedDx) < 0.005) smoothedDx = 0;
-        if (Math.abs(smoothedDy) < 0.005) smoothedDy = 0;
+        // Immediate zero-drift clamp when hand motion stops:
+        smoothedDx = 0;
+        smoothedDy = 0;
         return;
       }
 
@@ -907,15 +948,17 @@
       rawDx *= factor;
       rawDy *= factor;
 
-      // Adaptive low-pass filter (Exponential Moving Average):
-      // Heavy smoothing when moving slow (stops wobbles), fast response when moving fast
-      const alpha = Math.min(0.80, Math.max(0.25, 0.25 + mag * 0.15));
+      // Snappy dynamic response without spongy inertia:
+      // High speed motion = 0.95 (direct 1:1 tracking)
+      // Slow precision motion = 0.55 (kills tremors without floaty drift)
+      const alpha = Math.min(0.95, Math.max(0.55, 0.55 + mag * 0.30));
       smoothedDx = smoothedDx * (1 - alpha) + rawDx * alpha;
       smoothedDy = smoothedDy * (1 - alpha) + rawDy * alpha;
 
       const sens = (settings.airSensitivity || 1.8) * 12.0;
       pendingDx += smoothedDx * sens;
       pendingDy += smoothedDy * sens;
+      tryFastFlush();
     }
 
     let lastStatusUpdate = 0;
@@ -1137,10 +1180,12 @@
         let factor = settings.sensitivity;
         if (settings.accel) {
           const speed = Math.hypot(dx, dy);
-          factor *= 1 + Math.min(speed / 18, 2.0);
+          const curve = Math.pow(Math.min(speed / 20, 2.5), 1.2);
+          factor *= (1 + curve * 0.7);
         }
         pendingDx += dx * factor;
         pendingDy += dy * factor;
+        tryFastFlush();
       } else if (touches.length === 2) {
         const dir = settings.naturalScroll ? 1 : -1;
         pendingScroll += (dy / 18) * settings.scrollSpeed * dir;
@@ -1162,6 +1207,15 @@
       }
 
       activeTouchId = null;
+
+      // Flush any lingering sub-pixel motion delta on finger lift
+      const ix = Math.round(pendingDx);
+      const iy = Math.round(pendingDy);
+      if (ix !== 0 || iy !== 0) {
+        sendMoveBinary(ix, iy);
+        pendingDx -= ix;
+        pendingDy -= iy;
+      }
 
       if (isDragging) {
         isDragging = false;
