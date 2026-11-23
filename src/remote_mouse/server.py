@@ -222,14 +222,17 @@ async def websocket_endpoint(ws: WebSocket):
             elif t == "scroll":
                 mouse.scroll(0, msg.get("dy", 0))
             elif t == "click":
-                btn = Button.right if msg.get("button") == "right" else Button.left
+                b_name = msg.get("button")
+                btn = Button.right if b_name == "right" else (Button.middle if b_name == "middle" else Button.left)
                 mouse.click(btn, 1)
             elif t == "mouse_down":
-                btn = Button.right if msg.get("button") == "right" else Button.left
+                b_name = msg.get("button")
+                btn = Button.right if b_name == "right" else (Button.middle if b_name == "middle" else Button.left)
                 mouse.press(btn)
                 held_buttons.add(btn)
             elif t == "mouse_up":
-                btn = Button.right if msg.get("button") == "right" else Button.left
+                b_name = msg.get("button")
+                btn = Button.right if b_name == "right" else (Button.middle if b_name == "middle" else Button.left)
                 mouse.release(btn)
                 held_buttons.discard(btn)
             elif t == "type":

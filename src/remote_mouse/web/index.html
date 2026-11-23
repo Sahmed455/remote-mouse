@@ -87,6 +87,121 @@
     #pad.dragging #drag-badge { opacity: 1; }
     #pad * { pointer-events: none; }
 
+    #pad.airmouse-mode {
+      background: #11141c;
+      border-color: #3b82f6aa;
+      padding: 10px;
+      justify-content: stretch;
+    }
+    #airmouse-deck {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: 100%;
+      gap: 10px;
+      pointer-events: auto !important;
+    }
+    #airmouse-deck * { pointer-events: auto !important; }
+    .air-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .air-status-pill {
+      font-size: 11px;
+      font-weight: 600;
+      color: #60a5fa;
+      background: rgba(59, 130, 246, 0.15);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      padding: 4px 10px;
+      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .air-status-pill.paused {
+      color: #fbbf24;
+      background: rgba(251, 191, 36, 0.15);
+      border-color: rgba(251, 191, 36, 0.3);
+    }
+    .air-calib-btn {
+      background: #1f2738;
+      color: #93c5fd;
+      border: 1px solid #3b82f644;
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .air-calib-btn:active { background: #2563eb; color: #fff; }
+    .air-grid {
+      display: grid;
+      grid-template-columns: 1fr 64px 1fr;
+      gap: 8px;
+      flex: 1;
+    }
+    .air-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      border-radius: 14px;
+      border: 1.5px solid #2d3748;
+      background: #1a202c;
+      color: #e2e8f0;
+      touch-action: none;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+      transition: background 0.1s, border-color 0.1s;
+    }
+    .air-btn:active, .air-btn.held {
+      background: #2563eb;
+      border-color: #60a5fa;
+      color: #fff;
+    }
+    .air-btn-primary { background: #1e2638; border-color: #3b82f655; }
+    .air-btn-primary:active, .air-btn-primary.held { background: #2563eb; border-color: #93c5fd; }
+    .air-btn-icon { font-size: 24px; line-height: 1; }
+    .air-btn-text { font-size: 14px; font-weight: 700; }
+    .air-btn-sub { font-size: 10px; color: #94a3b8; }
+    .air-center-col {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .air-wheel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 4px;
+      background: #151a24;
+      border: 1.5px solid #2d3748;
+      border-radius: 12px;
+      color: #94a3b8;
+      font-size: 11px;
+      touch-action: none;
+      cursor: ns-resize;
+    }
+    .air-wheel:active, .air-wheel.active {
+      background: #1e293b;
+      border-color: #3b82f6;
+      color: #60a5fa;
+    }
+    .air-wheel-arrow { font-size: 10px; opacity: 0.6; }
+    .air-wheel-label { font-weight: 600; writing-mode: vertical-lr; transform: rotate(180deg); letter-spacing: 1px; }
+    .air-btn-mid {
+      height: 48px;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 10px;
+    }
+
     #extra-keys {
       display: none; margin: 0 10px 6px; padding: 8px;
       background: #151921; border: 1px solid #2b313d; border-radius: 14px;
@@ -168,6 +283,7 @@
       <button class="icon-btn" data-media="play_pause" title="Play/Pause">⏯</button>
       <button class="icon-btn" data-media="next" title="Next">⏭</button>
       <button class="icon-btn" id="qr-popup-btn" title="Open QR on PC">QR</button>
+      <button class="icon-btn" id="airmouse-toggle" title="Toggle Air Mouse Mode">🎯 Air</button>
       <button class="icon-btn" id="settings-toggle" title="Mouse Settings">⚙</button>
     </div>
   </div>
@@ -189,6 +305,20 @@
         <span class="val-pill" id="scroll-val">1.0x</span>
       </div>
     </div>
+    <div class="setting-row">
+      <label for="air-sens-slider">Air Mouse Speed</label>
+      <div class="slider-wrap">
+        <input id="air-sens-slider" type="range" min="0.5" max="5.0" step="0.1" />
+        <span class="val-pill" id="air-sens-val">1.8x</span>
+      </div>
+    </div>
+    <div class="setting-row">
+      <label for="gyro-deadzone-slider">Tremor Filter</label>
+      <div class="slider-wrap">
+        <input id="gyro-deadzone-slider" type="range" min="0.05" max="0.30" step="0.01" />
+        <span class="val-pill" id="gyro-deadzone-val">0.12</span>
+      </div>
+    </div>
     <div class="toggle-row">
       <label class="toggle-label"><input type="checkbox" id="accel-toggle" /> Pointer Acceleration</label>
       <label class="toggle-label"><input type="checkbox" id="natural-toggle" /> Natural Scroll</label>
@@ -205,8 +335,35 @@
 
   <div id="pad">
     <span id="drag-badge">DRAGGING</span>
-    <div>1-finger: Move · Tap: Click · 2x Tap &amp; Hold: Drag</div>
-    <div>2-finger: Scroll · 2-finger Tap: Right Click</div>
+    <div id="touch-hints">
+      <div>1-finger: Move · Tap: Click · 2x Tap &amp; Hold: Drag</div>
+      <div>2-finger: Scroll · 2-finger Tap: Right Click</div>
+    </div>
+    <div id="airmouse-deck" style="display: none;">
+      <div class="air-header">
+        <span class="air-status-pill" id="air-status-badge">🎯 Air Mouse Active</span>
+        <button class="air-calib-btn" id="air-calib-btn" title="Re-zero orientation reference">🎯 Recalibrate</button>
+      </div>
+      <div class="air-grid">
+        <button class="air-btn air-btn-primary" id="air-left-btn">
+          <span class="air-btn-icon">👆</span>
+          <span class="air-btn-text">Left Click</span>
+          <span class="air-btn-sub">Hold to Drag</span>
+        </button>
+        <div class="air-center-col">
+          <div class="air-wheel" id="air-wheel" title="Slide up/down to scroll">
+            <span class="air-wheel-arrow">▲</span>
+            <span class="air-wheel-label">Scroll</span>
+            <span class="air-wheel-arrow">▼</span>
+          </div>
+          <button class="air-btn air-btn-mid" id="air-mid-btn">Middle</button>
+        </div>
+        <button class="air-btn air-btn-secondary" id="air-right-btn">
+          <span class="air-btn-icon">👉</span>
+          <span class="air-btn-text">Right Click</span>
+        </button>
+      </div>
+    </div>
   </div>
 
   <div id="extra-keys">
@@ -395,7 +552,7 @@
       return bytesToBase64(new Uint8Array(sigBuf));
     }
 
-    const defaultSettings = { sensitivity: 1.9, scrollSpeed: 1.0, accel: true, naturalScroll: true };
+    const defaultSettings = { sensitivity: 1.9, scrollSpeed: 1.0, airSensitivity: 1.8, gyroDeadzone: 0.12, accel: true, naturalScroll: true };
     let settings = { ...defaultSettings };
     try {
       const saved = JSON.parse(localStorage.getItem("rm_settings") || "{}");
@@ -412,6 +569,10 @@
     const sensVal = document.getElementById("sens-val");
     const scrollSlider = document.getElementById("scroll-slider");
     const scrollVal = document.getElementById("scroll-val");
+    const airSensSlider = document.getElementById("air-sens-slider");
+    const airSensVal = document.getElementById("air-sens-val");
+    const gyroDeadzoneSlider = document.getElementById("gyro-deadzone-slider");
+    const gyroDeadzoneVal = document.getElementById("gyro-deadzone-val");
     const accelToggle = document.getElementById("accel-toggle");
     const naturalToggle = document.getElementById("natural-toggle");
 
@@ -420,6 +581,10 @@
       sensVal.textContent = `${settings.sensitivity.toFixed(1)}x`;
       scrollSlider.value = settings.scrollSpeed.toFixed(1);
       scrollVal.textContent = `${settings.scrollSpeed.toFixed(1)}x`;
+      airSensSlider.value = (settings.airSensitivity || 1.8).toFixed(1);
+      airSensVal.textContent = `${(settings.airSensitivity || 1.8).toFixed(1)}x`;
+      gyroDeadzoneSlider.value = (settings.gyroDeadzone || 0.12).toFixed(2);
+      gyroDeadzoneVal.textContent = (settings.gyroDeadzone || 0.12).toFixed(2);
       accelToggle.checked = settings.accel;
       naturalToggle.checked = settings.naturalScroll;
     }
@@ -440,6 +605,16 @@
     document.getElementById("sens-plus").addEventListener("click", () => updateSensitivity(settings.sensitivity + 0.2));
     scrollSlider.addEventListener("input", () => {
       settings.scrollSpeed = parseFloat(scrollSlider.value);
+      renderSettings();
+      saveSettings();
+    });
+    airSensSlider.addEventListener("input", () => {
+      settings.airSensitivity = parseFloat(airSensSlider.value);
+      renderSettings();
+      saveSettings();
+    });
+    gyroDeadzoneSlider.addEventListener("input", () => {
+      settings.gyroDeadzone = parseFloat(gyroDeadzoneSlider.value);
       renderSettings();
       saveSettings();
     });
@@ -612,14 +787,203 @@
     }
     requestAnimationFrame(flushMotion);
 
-    const DOUBLE_TAP_MS = 260;
-    const TAP_MAX_MS = 220;
-    const DEADZONE_PX = 6;
+    // Gestures & Double-tap drag timing
+    const DOUBLE_TAP_MS = 360;
+    const TAP_MAX_MS = 280;
+    const DEADZONE_PX = 14;
 
     let startX = 0, startY = 0, lastX = 0, lastY = 0;
-    let startTime = 0, lastTapTime = 0;
+    let startTime = 0, lastTapTime = 0, lastTapX = 0, lastTapY = 0;
     let moved = false, maxFingers = 0, isDragging = false, leftHeld = false;
     let activeTouchId = null;
+    let singleTapTimer = null;
+
+    // Air Mouse Controller
+    let airMouseActive = false;
+    let airMousePaused = false;
+    let hasDeviceMotion = false;
+    let lastOrientation = null;
+
+    const airmouseToggle = document.getElementById("airmouse-toggle");
+    const airmouseDeck = document.getElementById("airmouse-deck");
+    const touchHints = document.getElementById("touch-hints");
+    const airStatusBadge = document.getElementById("air-status-badge");
+    const airCalibBtn = document.getElementById("air-calib-btn");
+    const airLeftBtn = document.getElementById("air-left-btn");
+    const airRightBtn = document.getElementById("air-right-btn");
+    const airMidBtn = document.getElementById("air-mid-btn");
+    const airWheel = document.getElementById("air-wheel");
+
+    function updateAirMouseStatus() {
+      if (!airMouseActive) return;
+      if (airMousePaused) {
+        airStatusBadge.textContent = "⏸ Paused (Keyboard)";
+        airStatusBadge.classList.add("paused");
+      } else {
+        airStatusBadge.textContent = "🎯 Air Mouse Active";
+        airStatusBadge.classList.remove("paused");
+      }
+    }
+
+    function onDeviceMotion(e) {
+      if (!airMouseActive || airMousePaused) return;
+      hasDeviceMotion = true;
+      const r = e.rotationRate;
+      if (!r) return;
+
+      // In phone portrait orientation:
+      // gamma = roll (rotation around Y-axis: tilt left/right)
+      // beta = pitch (rotation around X-axis: tilt up/down)
+      let rateX = (r.gamma || 0);
+      let rateY = -(r.beta || 0);
+
+      const dz = settings.gyroDeadzone || 0.12;
+      if (Math.abs(rateX) < dz) rateX = 0;
+      else rateX = rateX - Math.sign(rateX) * dz;
+
+      if (Math.abs(rateY) < dz) rateY = 0;
+      else rateY = rateY - Math.sign(rateY) * dz;
+
+      if (rateX !== 0 || rateY !== 0) {
+        const factor = (settings.airSensitivity || 1.8) * 1.6;
+        pendingDx += rateX * factor;
+        pendingDy += rateY * factor;
+      }
+    }
+
+    function onDeviceOrientation(e) {
+      if (!airMouseActive || airMousePaused || hasDeviceMotion) return;
+      if (e.alpha === null || e.beta === null) return;
+
+      if (!lastOrientation) {
+        lastOrientation = { alpha: e.alpha, beta: e.beta, gamma: e.gamma };
+        return;
+      }
+
+      let dYaw = e.alpha - lastOrientation.alpha;
+      if (dYaw > 180) dYaw -= 360;
+      if (dYaw < -180) dYaw += 360;
+
+      let dPitch = e.beta - lastOrientation.beta;
+      lastOrientation = { alpha: e.alpha, beta: e.beta, gamma: e.gamma };
+
+      let rateX = -dYaw;
+      let rateY = -dPitch;
+
+      const dz = settings.gyroDeadzone || 0.12;
+      if (Math.abs(rateX) < dz) rateX = 0;
+      if (Math.abs(rateY) < dz) rateY = 0;
+
+      if (rateX !== 0 || rateY !== 0) {
+        const factor = (settings.airSensitivity || 1.8) * 2.2;
+        pendingDx += rateX * factor;
+        pendingDy += rateY * factor;
+      }
+    }
+
+    function startMotionTracking() {
+      lastOrientation = null;
+      window.addEventListener("devicemotion", onDeviceMotion);
+      window.addEventListener("deviceorientation", onDeviceOrientation);
+    }
+
+    function stopMotionTracking() {
+      window.removeEventListener("devicemotion", onDeviceMotion);
+      window.removeEventListener("deviceorientation", onDeviceOrientation);
+      pendingDx = 0;
+      pendingDy = 0;
+    }
+
+    async function toggleAirMouse(forceState) {
+      const nextState = typeof forceState === "boolean" ? forceState : !airMouseActive;
+      if (nextState && !airMouseActive) {
+        if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
+          try {
+            const perm = await DeviceOrientationEvent.requestPermission();
+            if (perm !== "granted") {
+              alert("Motion sensor permission is required for Air Mouse mode.");
+              return;
+            }
+          } catch (err) {}
+        }
+      }
+      airMouseActive = nextState;
+      airmouseToggle.classList.toggle("active", airMouseActive);
+      pad.classList.toggle("airmouse-mode", airMouseActive);
+      touchHints.style.display = airMouseActive ? "none" : "";
+      airmouseDeck.style.display = airMouseActive ? "flex" : "none";
+      updateAirMouseStatus();
+      if (airMouseActive) {
+        startMotionTracking();
+      } else {
+        stopMotionTracking();
+      }
+    }
+    airmouseToggle.addEventListener("click", () => toggleAirMouse());
+
+    airCalibBtn.addEventListener("click", () => {
+      lastOrientation = null;
+      pendingDx = 0;
+      pendingDy = 0;
+      airStatusBadge.textContent = "🎯 Recalibrated";
+      if (navigator.vibrate) navigator.vibrate(30);
+      setTimeout(updateAirMouseStatus, 700);
+    });
+
+    // Air Mouse deck button events
+    const pressAirLeft = (e) => {
+      e.preventDefault();
+      if (leftHeld) return;
+      leftHeld = true;
+      airLeftBtn.classList.add("held");
+      pad.classList.add("dragging");
+      if (navigator.vibrate) navigator.vibrate(20);
+      send({ type: "mouse_down", button: "left" });
+    };
+    const releaseAirLeft = (e) => {
+      e.preventDefault();
+      if (!leftHeld) return;
+      leftHeld = false;
+      airLeftBtn.classList.remove("held");
+      if (!isDragging) pad.classList.remove("dragging");
+      send({ type: "mouse_up", button: "left" });
+    };
+    airLeftBtn.addEventListener("touchstart", pressAirLeft, { passive: false });
+    airLeftBtn.addEventListener("touchend", releaseAirLeft, { passive: false });
+    airLeftBtn.addEventListener("touchcancel", releaseAirLeft, { passive: false });
+    airLeftBtn.addEventListener("mousedown", pressAirLeft);
+    airLeftBtn.addEventListener("mouseup", releaseAirLeft);
+
+    airRightBtn.addEventListener("click", () => {
+      if (navigator.vibrate) navigator.vibrate(20);
+      send({ type: "click", button: "right" });
+    });
+
+    airMidBtn.addEventListener("click", () => {
+      if (navigator.vibrate) navigator.vibrate(20);
+      send({ type: "click", button: "middle" });
+    });
+
+    let wheelStartY = 0, wheelLastY = 0;
+    airWheel.addEventListener("touchstart", (e) => {
+      if (e.targetTouches.length === 1) {
+        wheelStartY = wheelLastY = e.targetTouches[0].clientY;
+        airWheel.classList.add("active");
+      }
+    }, { passive: true });
+    airWheel.addEventListener("touchmove", (e) => {
+      e.preventDefault();
+      if (e.targetTouches.length === 1) {
+        const y = e.targetTouches[0].clientY;
+        const dy = y - wheelLastY;
+        const dir = settings.naturalScroll ? 1 : -1;
+        pendingScroll += (dy / 10) * settings.scrollSpeed * dir;
+        wheelLastY = y;
+      }
+    }, { passive: false });
+    const finishWheel = () => { airWheel.classList.remove("active"); };
+    airWheel.addEventListener("touchend", finishWheel);
+    airWheel.addEventListener("touchcancel", finishWheel);
 
     function getTouchById(touchList, id) {
       for (let i = 0; i < touchList.length; i++) {
@@ -629,6 +993,7 @@
     }
 
     pad.addEventListener("touchstart", (e) => {
+      if (airMouseActive) return; // In Air Mouse mode, pad gestures are handled by deck buttons
       const touches = e.targetTouches;
       maxFingers = Math.max(maxFingers, touches.length);
 
@@ -640,16 +1005,26 @@
         startTime = Date.now();
         moved = false;
 
-        if (!leftHeld && Date.now() - lastTapTime < DOUBLE_TAP_MS) {
+        const timeSinceTap = startTime - lastTapTime;
+        const distFromTap = Math.hypot(t.clientX - lastTapX, t.clientY - lastTapY);
+
+        if (!leftHeld && timeSinceTap < DOUBLE_TAP_MS && distFromTap < 60) {
+          // Double-tap detected: enter drag mode
+          if (singleTapTimer) {
+            clearTimeout(singleTapTimer);
+            singleTapTimer = null;
+          }
           isDragging = true;
           lastTapTime = 0;
           pad.classList.add("dragging");
+          if (navigator.vibrate) navigator.vibrate(25);
           send({ type: "mouse_down", button: "left" });
         }
       }
     }, { passive: true });
 
     pad.addEventListener("touchmove", (e) => {
+      if (airMouseActive) return;
       e.preventDefault();
       const touches = e.targetTouches;
       if (touches.length === 0) return;
@@ -688,6 +1063,7 @@
     }, { passive: false });
 
     function finishTouch(e) {
+      if (airMouseActive) return;
       const touches = e.targetTouches;
       if (touches.length > 0) {
         const remaining = touches[0];
@@ -703,13 +1079,29 @@
         isDragging = false;
         if (!leftHeld) pad.classList.remove("dragging");
         send({ type: "mouse_up", button: "left" });
+        if (!moved && Date.now() - startTime < TAP_MAX_MS) {
+          // Quick second tap without dragging = double-click
+          send({ type: "click", button: "left" });
+        }
+        lastTapTime = 0;
       } else if (!leftHeld && !moved && Date.now() - startTime < TAP_MAX_MS) {
         if (maxFingers === 2) {
+          if (singleTapTimer) { clearTimeout(singleTapTimer); singleTapTimer = null; }
           send({ type: "click", button: "right" });
+          lastTapTime = 0;
         } else if (maxFingers === 1) {
-          send({ type: "click", button: "left" });
           lastTapTime = Date.now();
+          lastTapX = lastX;
+          lastTapY = lastY;
+          // Micro-delay single click so double-tap drag does not trigger double-click
+          if (singleTapTimer) clearTimeout(singleTapTimer);
+          singleTapTimer = setTimeout(() => {
+            send({ type: "click", button: "left" });
+            singleTapTimer = null;
+          }, 180);
         }
+      } else {
+        lastTapTime = 0;
       }
       maxFingers = 0;
     }
@@ -719,6 +1111,7 @@
 
     const pressLeft = (e) => {
       e.preventDefault();
+      if (singleTapTimer) { clearTimeout(singleTapTimer); singleTapTimer = null; }
       if (leftHeld) return;
       leftHeld = true;
       leftBtn.classList.add("held");
@@ -741,7 +1134,10 @@
     leftBtn.addEventListener("mousedown", pressLeft);
     leftBtn.addEventListener("mouseup", releaseLeft);
 
-    rightBtn.addEventListener("click", () => send({ type: "click", button: "right" }));
+    rightBtn.addEventListener("click", () => {
+      if (singleTapTimer) { clearTimeout(singleTapTimer); singleTapTimer = null; }
+      send({ type: "click", button: "right" });
+    });
 
     const activeMods = new Set();
 
@@ -867,6 +1263,20 @@
         e.preventDefault();
         send({ type: "key", key: "enter", mods: consumeMods() });
         resetKb();
+      }
+    });
+
+    kb.addEventListener("focus", () => {
+      if (airMouseActive) {
+        airMousePaused = true;
+        updateAirMouseStatus();
+      }
+    });
+
+    kb.addEventListener("blur", () => {
+      if (airMouseActive) {
+        airMousePaused = false;
+        updateAirMouseStatus();
       }
     });
   </script>
