@@ -5,7 +5,12 @@ All notable changes to this project will be documented in this file.
 ## [v1.2.0.0] - 2026-11-24
 
 ### 🚀 Features & Enhancements
-- add Air Mouse gyro mode and fix double-tap drag (2cde90e)
+- **Air Mouse 3D Controller**: Control cursor motion by tilting and rotating your mobile phone in 3D space using hardware orientation sensor fusion (Azimuth & Pitch).
+- **Handheld Control Deck**: Dedicated Air Mouse interface with Left Click (Hold to Drag), Scroll Wheel strip, Middle Click, Right Click, Host Cursor Centering, and Invert X/Y axis toggles.
+- **High-Speed Binary Motion Protocol**: 5-byte compact WebSocket binary stream (`[0x01, dx, dy]`) slashing network overhead by 85% and bypassing JSON serialization.
+- **Low-Latency Fast-Path**: 125Hz fast-path flush bypassing mobile display vsync delays, sub-pixel rounding with error diffusion, and direct Win32 relative mouse injection.
+- **PC Cursor Centering**: One-touch center button (`center_cursor`) snapping cursor to primary display center and re-anchoring sensor baseline.
+- **Touchpad Double-Tap & Drag Fix**: Relaxed tap deadzone, phantom click prevention buffer, and silky-smooth non-linear acceleration curve.
 
 ## [v1.1.1.0] - 2026-11-23
 
