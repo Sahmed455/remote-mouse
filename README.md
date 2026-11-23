@@ -1,7 +1,7 @@
 # Remote Mouse & Keyboard Server (Remote MouseKB)
 
 [![Release](https://github.com/Sahmed455/remote-mouse/actions/workflows/release.yml/badge.svg)](https://github.com/Sahmed455/remote-mouse/actions/workflows/release.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
 An encrypted, zero-cloud local network and USB server that turns any mobile browser into a low-latency touchpad, keyboard, and media remote for your Windows PC.
 
@@ -141,4 +141,4 @@ For full privacy disclosures, see [PRIVACY.md](PRIVACY.md).
 
 ## 📄 License
 
-This project is licensed under the [MIT License](LICENSE).
+This project is licensed under the [GNU General Public License v3.0 (GPLv3)](LICENSE). Under this license, any derivative work, modification, or distribution must remain open source under the same terms.

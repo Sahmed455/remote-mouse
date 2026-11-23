@@ -6,6 +6,8 @@ build-backend = "setuptools.build_meta"
 name = "remote-mouse"
 version = "1.0.1"
 description = "Encrypted local-network and USB remote mouse and keyboard host"
+readme = "README.md"
+license = { text = "GPL-3.0-or-later" }
 requires-python = ">=3.12"
 dependencies = [
   "fastapi",
