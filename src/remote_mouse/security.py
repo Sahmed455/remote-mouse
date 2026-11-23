@@ -19,10 +19,42 @@ from remote_mouse.config import CERT_FILE, DATA_DIR, KEY_FILE, TRUSTED_FILE, log
 
 TRUSTED_LOCK = threading.Lock()
 _PIN_LOCK = threading.Lock()
+_MIGRATION_LOCK = threading.Lock()
 
 _pairing_pin = f"{secrets.randbelow(1_000_000):06d}"
 _failed_pin_attempts = 0
 _pin_lockout_until = 0.0
+
+# In-memory migration tokens: token -> {"device_id": str, "name": str, "expires_at": float}
+_migration_tokens: dict[str, dict] = {}
+
+
+def create_migration_token(device_id: str, device_name: str = "Device") -> str:
+    """Generate a single-use 120-second token allowing a paired USB client to hand off to Wi-Fi."""
+    with _MIGRATION_LOCK:
+        now = time.monotonic()
+        # Clean expired tokens
+        expired = [k for k, v in _migration_tokens.items() if v["expires_at"] <= now]
+        for k in expired:
+            del _migration_tokens[k]
+
+        token = secrets.token_urlsafe(24)
+        _migration_tokens[token] = {
+            "device_id": device_id,
+            "name": device_name,
+            "expires_at": now + 120.0,
+        }
+        return token
+
+
+def consume_migration_token(token: str) -> dict | None:
+    """Consume and invalidate a migration token if valid and not expired."""
+    with _MIGRATION_LOCK:
+        now = time.monotonic()
+        data = _migration_tokens.pop(token, None)
+        if data and data["expires_at"] > now:
+            return data
+        return None
 
 
 def get_pairing_pin() -> str:

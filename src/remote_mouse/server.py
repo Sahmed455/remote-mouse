@@ -12,9 +12,11 @@ from pynput.keyboard import Key
 from pynput.mouse import Button
 from pynput.mouse import Controller as MouseController
 
-from remote_mouse.config import WEB_INDEX_FILE, logger
+from remote_mouse.config import PORT, WEB_INDEX_FILE, get_local_ip, logger
 from remote_mouse.security import (
     TRUSTED_LOCK,
+    consume_migration_token,
+    create_migration_token,
     load_trusted_devices,
     rotate_pairing_pin,
     save_trusted_devices,
@@ -128,22 +130,34 @@ async def authenticate_client(ws: WebSocket) -> str | None:
 
     pairing_pin = str(resp.get("pairing_pin", ""))
     public_key_b64 = str(resp.get("public_key", ""))
+    migration_token = str(resp.get("migration_token", ""))
 
-    if not pairing_pin:
-        await ws.close(code=4001, reason="Unpaired device. Enter the 6-digit PIN from PC.")
-        return None
+    dev_name = str(resp.get("device_name", "Device"))[:40]
 
-    ok, code, reason = verify_pairing_pin(pairing_pin)
-    if not ok:
-        await ws.close(code=code, reason=reason)
-        return None
+    # Check if client presents a valid one-time migration token from USB pairing
+    token_valid = False
+    if migration_token:
+        mig_data = consume_migration_token(migration_token)
+        if mig_data:
+            token_valid = True
+            dev_name = mig_data.get("name", dev_name)
+            logger.info("Validated USB-to-Wi-Fi migration token for %s", device_id)
+
+    if not token_valid:
+        if not pairing_pin:
+            await ws.close(code=4001, reason="Unpaired device. Enter the 6-digit PIN from PC.")
+            return None
+
+        ok, code, reason = verify_pairing_pin(pairing_pin)
+        if not ok:
+            await ws.close(code=code, reason=reason)
+            return None
 
     valid, fp = verify_p256_signature(public_key_b64, nonce_bytes, signature_b64)
     if not valid or fp != device_id:
         await ws.close(code=4003, reason="Invalid device key or signature.")
         return None
 
-    dev_name = str(resp.get("device_name", "Device"))[:40]
     now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     with TRUSTED_LOCK:
         trusted = load_trusted_devices()
@@ -155,8 +169,9 @@ async def authenticate_client(ws: WebSocket) -> str | None:
         }
         save_trusted_devices(trusted)
 
-    rotate_pairing_pin()
-    logger.info("Paired new device: %s (%s)", device_id, dev_name)
+    if not token_valid:
+        rotate_pairing_pin()
+    logger.info("Paired device: %s (%s)", device_id, dev_name)
     await ws.send_json({"type": "auth_ok", "device_id": device_id, "paired": True})
     return device_id
 
@@ -164,6 +179,29 @@ async def authenticate_client(ws: WebSocket) -> str | None:
 @app.get("/")
 async def index():
     return HTMLResponse(WEB_INDEX_FILE.read_text(encoding="utf-8"))
+
+
+@app.get("/api/wifi-handoff")
+async def get_wifi_handoff(device_id: str = ""):
+    """Provide local Wi-Fi IP and a single-use handoff token for authenticated USB clients."""
+    with TRUSTED_LOCK:
+        trusted = load_trusted_devices()
+        dev_info = trusted.get(device_id)
+
+    if not dev_info:
+        return {"error": "Device not trusted", "supported": False}
+
+    local_ip = get_local_ip()
+    token = create_migration_token(device_id, dev_info.get("name", "Device"))
+    wifi_url = f"https://{local_ip}:{PORT}/?handoff={token}"
+
+    return {
+        "supported": local_ip != "127.0.0.1",
+        "local_ip": local_ip,
+        "port": PORT,
+        "token": token,
+        "wifi_url": wifi_url,
+    }
 
 
 @app.websocket("/ws")

@@ -52,6 +52,18 @@
       display: flex; align-items: center; justify-content: space-between; gap: 8px;
       padding-top: 8px; border-top: 1px solid #252b36; font-size: 11px; color: #8c96a8;
     }
+    .wifi-handoff-box {
+      margin-top: 10px; padding: 10px; background: #131722; border: 1px solid #22c55e44;
+      border-radius: 8px; display: none; flex-direction: column; gap: 8px;
+    }
+    .wifi-handoff-box.visible { display: flex; }
+    .wifi-btn {
+      background: #16a34a; color: #fff; border: none; border-radius: 6px;
+      padding: 8px 12px; font-weight: 600; font-size: 13px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .wifi-btn:active { background: #15803d; }
+    .wifi-desc { font-size: 11px; color: #94a3b8; line-height: 1.4; }
     .danger-btn {
       background: #2c1b1e; color: #fca5a5; border: 1px solid #5c282e;
       border-radius: 6px; padding: 4px 8px; font-size: 11px; font-weight: 600;
@@ -184,6 +196,10 @@
     <div class="key-info">
       <span id="device-id-label">Key ID: —</span>
       <button class="danger-btn" id="reset-key-btn">Regenerate Key</button>
+    </div>
+    <div id="wifi-handoff-box" class="wifi-handoff-box">
+      <div class="wifi-desc">Connected via USB. Switch to wireless without re-entering PIN:</div>
+      <button id="wifi-switch-btn" class="wifi-btn">📶 Switch to Wireless (Wi-Fi)</button>
     </div>
   </div>
 
@@ -445,7 +461,8 @@
 
     const params = new URLSearchParams(location.search);
     let pendingPairingPin = params.get("pin") || "";
-    if (pendingPairingPin) {
+    let pendingHandoffToken = params.get("handoff") || "";
+    if (pendingPairingPin || pendingHandoffToken) {
       history.replaceState({}, "", "/");
     }
 
@@ -487,6 +504,9 @@
             if (pendingPairingPin) {
               payload.pairing_pin = pendingPairingPin;
               payload.public_key = identity.publicKeyB64;
+            } else if (pendingHandoffToken) {
+              payload.migration_token = pendingHandoffToken;
+              payload.public_key = identity.publicKeyB64;
             }
             ws.send(JSON.stringify(payload));
           } catch (err) {
@@ -495,10 +515,31 @@
         } else if (msg.type === "auth_ok") {
           authenticated = true;
           pendingPairingPin = "";
+          pendingHandoffToken = "";
           pinOverlay.classList.remove("visible");
           statusDot.classList.add("ok");
-          const tag = location.hostname === "localhost" ? "USB" : "Wi-Fi";
+          const isUsb = location.hostname === "localhost" || location.hostname === "127.0.0.1";
+          const tag = isUsb ? "USB" : "Wi-Fi";
           statusText.textContent = `🔒 ${tag} · ${identity.deviceId.slice(0, 6)}`;
+
+          // Check if connected via USB to display Switch to Wi-Fi button
+          const wifiBox = document.getElementById("wifi-handoff-box");
+          if (isUsb && wifiBox) {
+            fetch(`/api/wifi-handoff?device_id=${encodeURIComponent(identity.deviceId)}`)
+              .then((r) => r.json())
+              .then((data) => {
+                if (data.supported && data.wifi_url) {
+                  wifiBox.classList.add("visible");
+                  const switchBtn = document.getElementById("wifi-switch-btn");
+                  switchBtn.onclick = () => {
+                    window.location.href = data.wifi_url;
+                  };
+                }
+              })
+              .catch(() => {});
+          } else if (wifiBox) {
+            wifiBox.classList.remove("visible");
+          }
         }
       };
 
