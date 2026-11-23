@@ -9,7 +9,7 @@
   <Identity
     Name="DeviLX.RemoteMouseKBServer"
     Publisher="CN=A7EC737B-6680-4F8B-98DE-1ED41C093A45"
-    Version="1.0.1.0"
+    Version="1.1.0.0"
     ProcessorArchitecture="x64" />
 
   <Properties>
@@ -19,7 +19,7 @@
   </Properties>
 
   <Dependencies>
-    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="1.0.1.0" MaxVersionTested="10.0.26100.0" />
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="1.1.0.0" MaxVersionTested="10.0.26100.0" />
   </Dependencies>
 
   <Resources>
