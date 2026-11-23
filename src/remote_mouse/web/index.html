@@ -322,6 +322,8 @@
     <div class="toggle-row">
       <label class="toggle-label"><input type="checkbox" id="accel-toggle" /> Pointer Acceleration</label>
       <label class="toggle-label"><input type="checkbox" id="natural-toggle" /> Natural Scroll</label>
+      <label class="toggle-label"><input type="checkbox" id="invert-air-x" /> Invert Air X</label>
+      <label class="toggle-label"><input type="checkbox" id="invert-air-y" /> Invert Air Y</label>
     </div>
     <div class="key-info">
       <span id="device-id-label">Key ID: —</span>
@@ -552,7 +554,16 @@
       return bytesToBase64(new Uint8Array(sigBuf));
     }
 
-    const defaultSettings = { sensitivity: 1.9, scrollSpeed: 1.0, airSensitivity: 1.8, gyroDeadzone: 0.12, accel: true, naturalScroll: true };
+    const defaultSettings = {
+      sensitivity: 1.9,
+      scrollSpeed: 1.0,
+      airSensitivity: 1.8,
+      gyroDeadzone: 0.12,
+      invertAirX: false,
+      invertAirY: false,
+      accel: true,
+      naturalScroll: true
+    };
     let settings = { ...defaultSettings };
     try {
       const saved = JSON.parse(localStorage.getItem("rm_settings") || "{}");
@@ -575,6 +586,8 @@
     const gyroDeadzoneVal = document.getElementById("gyro-deadzone-val");
     const accelToggle = document.getElementById("accel-toggle");
     const naturalToggle = document.getElementById("natural-toggle");
+    const invertAirXToggle = document.getElementById("invert-air-x");
+    const invertAirYToggle = document.getElementById("invert-air-y");
 
     function renderSettings() {
       sensSlider.value = settings.sensitivity.toFixed(1);
@@ -587,6 +600,8 @@
       gyroDeadzoneVal.textContent = (settings.gyroDeadzone || 0.12).toFixed(2);
       accelToggle.checked = settings.accel;
       naturalToggle.checked = settings.naturalScroll;
+      invertAirXToggle.checked = !!settings.invertAirX;
+      invertAirYToggle.checked = !!settings.invertAirY;
     }
     renderSettings();
 
@@ -620,6 +635,8 @@
     });
     accelToggle.addEventListener("change", () => { settings.accel = accelToggle.checked; saveSettings(); });
     naturalToggle.addEventListener("change", () => { settings.naturalScroll = naturalToggle.checked; saveSettings(); });
+    invertAirXToggle.addEventListener("change", () => { settings.invertAirX = invertAirXToggle.checked; saveSettings(); });
+    invertAirYToggle.addEventListener("change", () => { settings.invertAirY = invertAirYToggle.checked; saveSettings(); });
 
     document.getElementById("reset-key-btn").addEventListener("click", async () => {
       if (!confirm("Generate a brand-new cryptographic key? You will need to pair again with a PIN.")) return;
@@ -825,71 +842,101 @@
       }
     }
 
-    function onDeviceMotion(e) {
+    // High-precision adaptive smoothing state
+    let smoothedDx = 0;
+    let smoothedDy = 0;
+
+    function handleMotionDelta(rawDx, rawDy) {
       if (!airMouseActive || airMousePaused) return;
-      hasDeviceMotion = true;
-      const r = e.rotationRate;
-      if (!r) return;
 
-      // In phone portrait orientation:
-      // gamma = roll (rotation around Y-axis: tilt left/right)
-      // beta = pitch (rotation around X-axis: tilt up/down)
-      let rateX = (r.gamma || 0);
-      let rateY = -(r.beta || 0);
+      // Invert if configured in settings
+      if (settings.invertAirX) rawDx = -rawDx;
+      if (settings.invertAirY) rawDy = -rawDy;
 
-      const dz = settings.gyroDeadzone || 0.12;
-      if (Math.abs(rateX) < dz) rateX = 0;
-      else rateX = rateX - Math.sign(rateX) * dz;
+      // Tremor deadzone filtering (filters physiological resting hand tremor)
+      const dz = (settings.gyroDeadzone !== undefined ? settings.gyroDeadzone : 0.12);
+      if (Math.abs(rawDx) < dz) rawDx = 0;
+      else rawDx -= Math.sign(rawDx) * dz;
 
-      if (Math.abs(rateY) < dz) rateY = 0;
-      else rateY = rateY - Math.sign(rateY) * dz;
+      if (Math.abs(rawDy) < dz) rawDy = 0;
+      else rawDy -= Math.sign(rawDy) * dz;
 
-      if (rateX !== 0 || rateY !== 0) {
-        const factor = (settings.airSensitivity || 1.8) * 1.6;
-        pendingDx += rateX * factor;
-        pendingDy += rateY * factor;
-      }
-    }
-
-    function onDeviceOrientation(e) {
-      if (!airMouseActive || airMousePaused || hasDeviceMotion) return;
-      if (e.alpha === null || e.beta === null) return;
-
-      if (!lastOrientation) {
-        lastOrientation = { alpha: e.alpha, beta: e.beta, gamma: e.gamma };
+      if (rawDx === 0 && rawDy === 0) {
+        // Fast decay when stationary to freeze cursor completely without drift
+        smoothedDx *= 0.5;
+        smoothedDy *= 0.5;
+        if (Math.abs(smoothedDx) < 0.01) smoothedDx = 0;
+        if (Math.abs(smoothedDy) < 0.01) smoothedDy = 0;
         return;
       }
 
-      let dYaw = e.alpha - lastOrientation.alpha;
+      // Dynamic adaptive low-pass filter (EMA):
+      // Heavy smoothing at low speeds eliminates jitter/wobble;
+      // High responsiveness at higher speeds gives instant flick aiming with zero lag.
+      const speed = Math.hypot(rawDx, rawDy);
+      const alpha = Math.min(0.85, Math.max(0.28, 0.28 + speed * 0.12));
+
+      smoothedDx = smoothedDx * (1 - alpha) + rawDx * alpha;
+      smoothedDy = smoothedDy * (1 - alpha) + rawDy * alpha;
+
+      const sens = (settings.airSensitivity || 1.8) * 7.5;
+      pendingDx += smoothedDx * sens;
+      pendingDy += smoothedDy * sens;
+    }
+
+    function onDeviceOrientation(e) {
+      if (!airMouseActive || airMousePaused) return;
+      if (e.alpha === null || e.beta === null || e.gamma === null) return;
+
+      if (!lastOrientation) {
+        lastOrientation = { alpha: e.alpha, beta: e.beta, gamma: e.gamma };
+        smoothedDx = 0;
+        smoothedDy = 0;
+        return;
+      }
+
+      // Compass yaw delta (counter-clockwise degrees: turning right decreases alpha)
+      let dYaw = -(e.alpha - lastOrientation.alpha);
       if (dYaw > 180) dYaw -= 360;
       if (dYaw < -180) dYaw += 360;
 
-      let dPitch = e.beta - lastOrientation.beta;
+      // Pitch delta (tilting top backward/up increases beta)
+      let dPitch = (e.beta - lastOrientation.beta);
+      if (dPitch > 180) dPitch -= 360;
+      if (dPitch < -180) dPitch += 360;
+
+      // Roll delta (tilting right increases gamma)
+      let dRoll = (e.gamma - lastOrientation.gamma);
+      if (dRoll > 90) dRoll -= 180;
+      if (dRoll < -90) dRoll += 180;
+
       lastOrientation = { alpha: e.alpha, beta: e.beta, gamma: e.gamma };
 
-      let rateX = -dYaw;
-      let rateY = -dPitch;
+      // Prevent anomalous giant jumps (e.g. phone flipped upside down or sensor glitch)
+      if (Math.abs(dYaw) > 40 || Math.abs(dPitch) > 40 || Math.abs(dRoll) > 40) return;
 
-      const dz = settings.gyroDeadzone || 0.12;
-      if (Math.abs(rateX) < dz) rateX = 0;
-      if (Math.abs(rateY) < dz) rateY = 0;
+      // Mapping:
+      // Turn right (dYaw > 0) or Tilt right (dRoll > 0) -> move cursor right (+dx)
+      // Tilt up (dPitch > 0) -> move cursor up (-dy in PC screen coordinates)
+      // Tilt down (dPitch < 0) -> move cursor down (+dy in PC screen coordinates)
+      const rawDx = (dYaw * 1.0) + (dRoll * 0.6);
+      const rawDy = -dPitch;
 
-      if (rateX !== 0 || rateY !== 0) {
-        const factor = (settings.airSensitivity || 1.8) * 2.2;
-        pendingDx += rateX * factor;
-        pendingDy += rateY * factor;
-      }
+      handleMotionDelta(rawDx, rawDy);
     }
 
     function startMotionTracking() {
       lastOrientation = null;
-      window.addEventListener("devicemotion", onDeviceMotion);
+      smoothedDx = 0;
+      smoothedDy = 0;
       window.addEventListener("deviceorientation", onDeviceOrientation);
     }
 
     function stopMotionTracking() {
-      window.removeEventListener("devicemotion", onDeviceMotion);
       window.removeEventListener("deviceorientation", onDeviceOrientation);
+      lastOrientation = null;
+      smoothedDx = 0;
+      smoothedDy = 0;
       pendingDx = 0;
       pendingDy = 0;
     }
@@ -923,6 +970,8 @@
 
     airCalibBtn.addEventListener("click", () => {
       lastOrientation = null;
+      smoothedDx = 0;
+      smoothedDy = 0;
       pendingDx = 0;
       pendingDy = 0;
       airStatusBadge.textContent = "🎯 Recalibrated";
