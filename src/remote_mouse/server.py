@@ -219,6 +219,16 @@ async def websocket_endpoint(ws: WebSocket):
 
             if t == "move":
                 mouse.move(msg.get("dx", 0), msg.get("dy", 0))
+            elif t == "center_cursor":
+                try:
+                    import ctypes
+                    w = ctypes.windll.user32.GetSystemMetrics(0)
+                    h = ctypes.windll.user32.GetSystemMetrics(1)
+                    target = (w // 2, h // 2)
+                    mouse.position = target
+                    ctypes.windll.user32.SetCursorPos(target[0], target[1])
+                except Exception as e:
+                    logger.warning("Could not center cursor: %s", e)
             elif t == "scroll":
                 mouse.scroll(0, msg.get("dy", 0))
             elif t == "click":
