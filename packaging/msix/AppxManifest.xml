@@ -13,7 +13,7 @@
     ProcessorArchitecture="x64" />
 
   <Properties>
-    <DisplayName>Remote MouseKB Server</DisplayName>
+    <DisplayName>DeviLX KeyWave</DisplayName>
     <PublisherDisplayName>DeviLX</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
@@ -32,7 +32,7 @@
       Executable="RemoteMouse.exe"
       EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements
-        DisplayName="Remote MouseKB Server"
+        DisplayName="DeviLX KeyWave"
         Description="Encrypted local-network and USB remote touchpad and keyboard host"
         BackgroundColor="#11151c"
         Square150x150Logo="Assets\Square150x150Logo.png"
@@ -47,7 +47,7 @@
           <desktop:StartupTask
             TaskId="RemoteMouseStartup"
             Enabled="true"
-            DisplayName="Remote MouseKB Server" />
+            DisplayName="DeviLX KeyWave" />
         </desktop:Extension>
       </Extensions>
     </Application>
