@@ -25,6 +25,10 @@ msix_staging/
 *.log
 trusted_devices.json
 
+# Persistent release certificate for packaging
+!packaging/certs/*.pfx
+!packaging/certs/*.cer
+
 # Editor & OS metadata
 .vscode/
 .DS_Store

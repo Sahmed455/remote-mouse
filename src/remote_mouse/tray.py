@@ -13,8 +13,10 @@ from remote_mouse.config import (
     DATA_DIR,
     PORT,
     get_local_ip,
+    is_admin,
     is_packaged_msix,
     is_startup_enabled,
+    relaunch_as_admin,
     set_windows_startup,
 )
 from remote_mouse.security import (
@@ -86,15 +88,21 @@ class TrayApp:
                 checked=lambda _item: is_startup_enabled(),
             )
 
+        if is_admin():
+            admin_item = pystray.MenuItem("🛡️ Running as Administrator", lambda _icon, _item: None, enabled=False)
+        else:
+            admin_item = pystray.MenuItem("🛡️ Run as Administrator", self._on_relaunch_admin)
+
         self.icon = pystray.Icon(
             APP_NAME,
             create_tray_icon_image(),
-            "Remote Mouse (HTTPS + ECDSA)",
+            "DeviLX KeyWave (HTTPS + ECDSA)" + (" [Admin]" if is_admin() else ""),
             menu=pystray.Menu(
                 pystray.MenuItem("Show QR Code & PIN", self._on_show, default=True),
                 pystray.MenuItem("Regenerate Pairing PIN", self._on_new_pin),
                 pystray.MenuItem("Open Data Folder", self._on_open_data_dir),
                 pystray.Menu.SEPARATOR,
+                admin_item,
                 startup_item,
                 pystray.Menu.SEPARATOR,
                 pystray.MenuItem("Quit", self._on_quit),
@@ -120,10 +128,11 @@ class TrayApp:
 
         self.url_var.set(f"Wi-Fi URL  : {base_url}")
         self.pin_var.set(f"Pairing PIN: {pin}")
+        admin_tag = " · 🛡️ Admin" if is_admin() else " · ⚠️ Standard User"
         if ip == "127.0.0.1":
-            self.info_var.set("No Wi-Fi/Hotspot yet — USB tunnel active | Refresh IP once connected")
+            self.info_var.set(f"No Wi-Fi/Hotspot yet — USB active{admin_tag} | Refresh IP once connected")
         else:
-            self.info_var.set(f"Encrypted WSS + ECDSA P-256  |  Trusted origins: {trusted_count}")
+            self.info_var.set(f"Encrypted WSS + ECDSA P-256{admin_tag}  |  Trusted: {trusted_count}")
 
     def show_popup(self) -> None:
         self.refresh_popup()
@@ -162,6 +171,10 @@ class TrayApp:
     def _on_open_data_dir(self, _icon, _item) -> None:
         if sys.platform == "win32":
             os.startfile(str(DATA_DIR))
+
+    def _on_relaunch_admin(self, _icon, _item) -> None:
+        if relaunch_as_admin():
+            self._on_quit(_icon, _item)
 
     def _on_quit(self, _icon, _item) -> None:
         self.usb_stop.set()

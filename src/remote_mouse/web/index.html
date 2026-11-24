@@ -743,7 +743,8 @@
           statusDot.classList.add("ok");
           const isUsb = location.hostname === "localhost" || location.hostname === "127.0.0.1";
           const tag = isUsb ? "USB" : "Wi-Fi";
-          statusText.textContent = `🔒 ${tag} · ${identity.deviceId.slice(0, 6)}`;
+          const adminTag = msg.is_admin ? " · 🛡️ Admin" : "";
+          statusText.textContent = `🔒 ${tag}${adminTag} · ${identity.deviceId.slice(0, 6)}`;
 
           // Check if connected via USB to display Switch to Wi-Fi button
           const wifiBox = document.getElementById("wifi-handoff-box");

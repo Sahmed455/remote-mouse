@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v1.2.1.0] - 2026-11-24
+
+### 🔒 Security & Code Signing
+- **Persistent Release Certificate**: Embedded a persistent 10-year Code Signing Certificate (`RemoteMouse_Persistent.pfx`) so all CI and local builds sign with the exact same trusted certificate instead of disposable runners.
+- **UIAccess Support**: Enabled `--windows-uac-uiaccess` in Nuitka compilation and GitHub Actions packaging, allowing installed MSIX applications to interact with Administrator terminals, Task Manager, Windows Security, and Authenticator popups.
+
+### ⚡ Hardware Input & Elevation
+- **Direct Win32 Hardware Pipeline**: Replaced pynput mouse clicks, holds, and scrolls with direct Win32 `_win32_mouse_event`.
+- **Physical Virtual-Key Input**: Added `VkKeyScanW` translation and `_win32_keybd_event` with `KEYEVENTF_EXTENDEDKEY` support for `⊞ Win`, arrows, and special keys so PIN and credential fields accept typed characters.
+- **In-App Elevation**: Added a one-click `🛡️ Run as Administrator` option in the PC system tray menu and `--elevate` CLI flag, with visual `🛡️ Admin` status on the mobile web topbar.
+- **Stability Fix**: Removed leaky desktop handle synchronization that caused input queue freezes.
+
 ## [v1.2.0.0] - 2026-11-24
 
 ### 🚀 Features & Enhancements

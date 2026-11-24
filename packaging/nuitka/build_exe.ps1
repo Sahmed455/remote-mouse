@@ -58,6 +58,7 @@ $nuitkaArgs = @(
     "--file-description=Encrypted Remote Mouse and Keyboard Host",
     "--file-version=$Version",
     "--product-version=$Version",
+    "--windows-uac-uiaccess",
     "--assume-yes-for-downloads"
 )
 
@@ -70,4 +71,16 @@ $nuitkaArgs += $entry
 & $python @nuitkaArgs
 
 Move-Item -Path (Join-Path $outDir "run.dist") -Destination $distDir
+
+# Sign the compiled binary with persistent release certificate
+$pfxFile = Join-Path $repoRoot "packaging\certs\RemoteMouse_Persistent.pfx"
+if (Test-Path $pfxFile) {
+    $signtool = (Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue |
+        Sort-Object FullName -Descending | Select-Object -First 1).FullName
+    if ($signtool) {
+        & $signtool sign /fd SHA256 /f $pfxFile /p "RemoteMouse2026!KeyWave" "$distDir\RemoteMouse.exe"
+        Write-Host "Signed RemoteMouse.exe with persistent release cert." -ForegroundColor Green
+    }
+}
+
 Write-Host "Build complete: $distDir\RemoteMouse.exe" -ForegroundColor Green

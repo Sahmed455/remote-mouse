@@ -16,7 +16,7 @@ from pynput.keyboard import Key
 from pynput.mouse import Button
 from pynput.mouse import Controller as MouseController
 
-from remote_mouse.config import PORT, WEB_INDEX_FILE, get_local_ip, logger
+from remote_mouse.config import PORT, WEB_INDEX_FILE, get_local_ip, is_admin, logger
 from remote_mouse.security import (
     TRUSTED_LOCK,
     consume_migration_token,
@@ -36,16 +36,177 @@ _qr_callback: Callable[[], None] | None = None
 
 if sys.platform == "win32":
     import ctypes
-    _win32_mouse_event = ctypes.windll.user32.mouse_event
-    _win32_get_metric = ctypes.windll.user32.GetSystemMetrics
-    _win32_set_cursor = ctypes.windll.user32.SetCursorPos
+    _user32 = ctypes.windll.user32
+    _win32_mouse_event = _user32.mouse_event
+    _win32_get_metric = _user32.GetSystemMetrics
+    _win32_set_cursor = _user32.SetCursorPos
+    _win32_keybd_event = _user32.keybd_event
+    _win32_vk_key_scan = _user32.VkKeyScanW
+
+    # Win32 Mouse Event Flags
+    MOUSEEVENTF_MOVE = 0x0001
+    MOUSEEVENTF_LEFTDOWN = 0x0002
+    MOUSEEVENTF_LEFTUP = 0x0004
+    MOUSEEVENTF_RIGHTDOWN = 0x0008
+    MOUSEEVENTF_RIGHTUP = 0x0010
+    MOUSEEVENTF_MIDDLEDOWN = 0x0020
+    MOUSEEVENTF_MIDDLEUP = 0x0040
+    MOUSEEVENTF_WHEEL = 0x0800
+
+    SPECIAL_VK = {
+        "backspace": 0x08,
+        "tab": 0x09,
+        "enter": 0x0D,
+        "esc": 0x1B,
+        "space": 0x20,
+        "page_up": 0x21,
+        "page_down": 0x22,
+        "end": 0x23,
+        "home": 0x24,
+        "left": 0x25,
+        "up": 0x26,
+        "right": 0x27,
+        "down": 0x28,
+        "delete": 0x2E,
+        "win": 0x5B,
+        "insert": 0x2D,
+        "print_screen": 0x2C,
+        **{f"f{i}": 0x6F + i for i in range(1, 13)},
+    }
+
+    MOD_VK = {
+        "ctrl": 0x11,
+        "alt": 0x12,
+        "shift": 0x10,
+        "win": 0x5B,
+    }
 
     def _fast_relative_move(dx: int, dy: int) -> None:
-        # MOUSEEVENTF_MOVE = 0x0001 (Zero GetCursorPos overhead)
-        _win32_mouse_event(0x0001, dx, dy, 0, 0)
+        _win32_mouse_event(MOUSEEVENTF_MOVE, dx, dy, 0, 0)
+
+    def _do_click(btn_name: str) -> None:
+        if btn_name == "right":
+            _win32_mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, 0)
+            _win32_mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, 0)
+        elif btn_name == "middle":
+            _win32_mouse_event(MOUSEEVENTF_MIDDLEDOWN, 0, 0, 0, 0)
+            _win32_mouse_event(MOUSEEVENTF_MIDDLEUP, 0, 0, 0, 0)
+        else:
+            _win32_mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
+            _win32_mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+
+    def _do_mouse_down(btn_name: str) -> None:
+        if btn_name == "right":
+            _win32_mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, 0)
+        elif btn_name == "middle":
+            _win32_mouse_event(MOUSEEVENTF_MIDDLEDOWN, 0, 0, 0, 0)
+        else:
+            _win32_mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
+
+    def _do_mouse_up(btn_name: str) -> None:
+        if btn_name == "right":
+            _win32_mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, 0)
+        elif btn_name == "middle":
+            _win32_mouse_event(MOUSEEVENTF_MIDDLEUP, 0, 0, 0, 0)
+        else:
+            _win32_mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+
+    def _do_scroll(dy: float) -> None:
+        wheel_delta = int(dy * 120)
+        if wheel_delta:
+            _win32_mouse_event(MOUSEEVENTF_WHEEL, 0, 0, wheel_delta, 0)
+
+    def _win32_type_char(ch: str) -> bool:
+        """Types a character using physical Virtual Key codes so password/PIN fields accept it."""
+        res = _win32_vk_key_scan(ord(ch))
+        if res == -1:
+            return False
+        vk = res & 0xFF
+        shift = (res >> 8) & 1
+        ctrl = (res >> 8) & 2
+        alt = (res >> 8) & 4
+
+        if shift: _win32_keybd_event(0x10, 0, 0, 0)
+        if ctrl: _win32_keybd_event(0x11, 0, 0, 0)
+        if alt: _win32_keybd_event(0x12, 0, 0, 0)
+
+        _win32_keybd_event(vk, 0, 0, 0)
+        _win32_keybd_event(vk, 0, 2, 0)
+
+        if alt: _win32_keybd_event(0x12, 0, 2, 0)
+        if ctrl: _win32_keybd_event(0x11, 0, 2, 0)
+        if shift: _win32_keybd_event(0x10, 0, 2, 0)
+        return True
+
+    def _do_type(text: str, mods: list[str] | None = None) -> None:
+        mods = mods or []
+        if mods and len(text) == 1:
+            for mod in mods:
+                mvk = MOD_VK.get(mod)
+                if mvk: _win32_keybd_event(mvk, 0, 0, 0)
+            _win32_type_char(text.lower())
+            for mod in reversed(mods):
+                mvk = MOD_VK.get(mod)
+                if mvk: _win32_keybd_event(mvk, 0, 2, 0)
+        else:
+            for ch in text:
+                if not _win32_type_char(ch):
+                    keyboard.type(ch)
+
+    EXTENDED_VKS = {0x5B, 0x5C, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x2D, 0x2E}
+
+    def _do_key(key_name: str, mods: list[str] | None = None) -> None:
+        mods = mods or []
+        vk = SPECIAL_VK.get(key_name)
+        if vk:
+            ext = 1 if vk in EXTENDED_VKS else 0
+            for mod in mods:
+                mvk = MOD_VK.get(mod)
+                if mvk:
+                    mext = 1 if mvk in EXTENDED_VKS else 0
+                    _win32_keybd_event(mvk, 0, mext, 0)
+            _win32_keybd_event(vk, 0, ext, 0)
+            _win32_keybd_event(vk, 0, ext | 2, 0)
+            for mod in reversed(mods):
+                mvk = MOD_VK.get(mod)
+                if mvk:
+                    mext = 1 if mvk in EXTENDED_VKS else 0
+                    _win32_keybd_event(mvk, 0, mext | 2, 0)
+        else:
+            key_obj = SPECIAL_KEYS.get(key_name)
+            if key_obj:
+                _press_with_mods(mods, lambda: keyboard.tap(key_obj))
 else:
     def _fast_relative_move(dx: int, dy: int) -> None:
         mouse.move(dx, dy)
+
+    def _do_click(btn_name: str) -> None:
+        btn = Button.right if btn_name == "right" else (Button.middle if btn_name == "middle" else Button.left)
+        mouse.click(btn, 1)
+
+    def _do_mouse_down(btn_name: str) -> None:
+        btn = Button.right if btn_name == "right" else (Button.middle if btn_name == "middle" else Button.left)
+        mouse.press(btn)
+
+    def _do_mouse_up(btn_name: str) -> None:
+        btn = Button.right if btn_name == "right" else (Button.middle if btn_name == "middle" else Button.left)
+        mouse.release(btn)
+
+    def _do_scroll(dy: float) -> None:
+        mouse.scroll(0, dy)
+
+    def _do_type(text: str, mods: list[str] | None = None) -> None:
+        mods = mods or []
+        if mods and len(text) == 1:
+            _press_with_mods(mods, lambda: keyboard.tap(text.lower()))
+        elif text:
+            keyboard.type(text)
+
+    def _do_key(key_name: str, mods: list[str] | None = None) -> None:
+        mods = mods or []
+        key_obj = SPECIAL_KEYS.get(key_name)
+        if key_obj:
+            _press_with_mods(mods, lambda: keyboard.tap(key_obj))
 
 SPECIAL_KEYS = {
     "backspace": Key.backspace,
@@ -141,7 +302,7 @@ async def authenticate_client(ws: WebSocket) -> str | None:
                 trusted[device_id]["last_seen"] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
                 save_trusted_devices(trusted)
 
-        await ws.send_json({"type": "auth_ok", "device_id": device_id})
+        await ws.send_json({"type": "auth_ok", "device_id": device_id, "is_admin": is_admin()})
         logger.info("Trusted device connected: %s", device_id)
         return device_id
 
@@ -189,7 +350,7 @@ async def authenticate_client(ws: WebSocket) -> str | None:
     if not token_valid:
         rotate_pairing_pin()
     logger.info("Paired device: %s (%s)", device_id, dev_name)
-    await ws.send_json({"type": "auth_ok", "device_id": device_id, "paired": True})
+    await ws.send_json({"type": "auth_ok", "device_id": device_id, "paired": True, "is_admin": is_admin()})
     return device_id
 
 
@@ -256,7 +417,7 @@ async def websocket_endpoint(ws: WebSocket):
                         _fast_relative_move(dx, dy)
                 elif len(data_bytes) == 5 and data_bytes[0] == 0x02:
                     dy = struct.unpack_from("<f", data_bytes, 1)[0]
-                    mouse.scroll(0, dy)
+                    _do_scroll(dy)
                 continue
 
             text = raw.get("text")
@@ -284,32 +445,21 @@ async def websocket_endpoint(ws: WebSocket):
                 except Exception as e:
                     logger.warning("Could not center cursor: %s", e)
             elif t == "scroll":
-                mouse.scroll(0, msg.get("dy", 0))
+                _do_scroll(msg.get("dy", 0))
             elif t == "click":
-                b_name = msg.get("button")
-                btn = Button.right if b_name == "right" else (Button.middle if b_name == "middle" else Button.left)
-                mouse.click(btn, 1)
+                _do_click(msg.get("button", "left"))
             elif t == "mouse_down":
-                b_name = msg.get("button")
-                btn = Button.right if b_name == "right" else (Button.middle if b_name == "middle" else Button.left)
-                mouse.press(btn)
-                held_buttons.add(btn)
+                b_name = msg.get("button", "left")
+                _do_mouse_down(b_name)
+                held_buttons.add(b_name)
             elif t == "mouse_up":
-                b_name = msg.get("button")
-                btn = Button.right if b_name == "right" else (Button.middle if b_name == "middle" else Button.left)
-                mouse.release(btn)
-                held_buttons.discard(btn)
+                b_name = msg.get("button", "left")
+                _do_mouse_up(b_name)
+                held_buttons.discard(b_name)
             elif t == "type":
-                text = msg.get("text", "")
-                mods = msg.get("mods", [])
-                if mods and len(text) == 1:
-                    _press_with_mods(mods, lambda: keyboard.tap(text.lower()))
-                elif text:
-                    keyboard.type(text)
+                _do_type(msg.get("text", ""), msg.get("mods", []))
             elif t == "key":
-                key_obj = SPECIAL_KEYS.get(msg.get("key"))
-                if key_obj:
-                    _press_with_mods(msg.get("mods", []), lambda: keyboard.tap(key_obj))
+                _do_key(msg.get("key"), msg.get("mods", []))
             elif t == "media":
                 media_obj = MEDIA_KEYS.get(msg.get("action"))
                 if media_obj:
@@ -320,4 +470,4 @@ async def websocket_endpoint(ws: WebSocket):
         pass
     finally:
         for btn in list(held_buttons):
-            mouse.release(btn)
+            _do_mouse_up(btn)

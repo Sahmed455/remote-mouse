@@ -9,8 +9,10 @@ from remote_mouse.config import (
     KEY_FILE,
     PORT,
     get_local_ip,
+    is_admin,
     is_packaged_msix,
     logger,
+    relaunch_as_admin,
     set_windows_startup,
 )
 from remote_mouse.security import (
@@ -32,7 +34,15 @@ def handle_cli() -> tuple[bool, bool]:
     parser.add_argument("--install-startup", action="store_true", help="Enable silent start on Windows login")
     parser.add_argument("--remove-startup", action="store_true", help="Disable start on Windows login")
     parser.add_argument("--show", action="store_true", help="Open QR popup immediately on launch")
+    parser.add_argument("--admin", "--elevate", action="store_true", dest="elevate", help="Run with elevated Administrator privileges")
     args = parser.parse_args()
+
+    if args.elevate:
+        if not is_admin():
+            print("Requesting Administrator elevation...")
+            relaunch_as_admin()
+            return True, False
+        print("Already running with Administrator privileges.")
 
     if args.devices:
         with TRUSTED_LOCK:

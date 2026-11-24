@@ -9,7 +9,7 @@
   <Identity
     Name="DeviLX.RemoteMouseKBServer"
     Publisher="CN=A7EC737B-6680-4F8B-98DE-1ED41C093A45"
-    Version="1.2.0.0"
+    Version="1.2.1.0"
     ProcessorArchitecture="x64" />
 
   <Properties>

@@ -35,6 +35,46 @@ def is_packaged_msix() -> bool:
         return False
 
 
+def is_admin() -> bool:
+    """Return True if the current process is running with elevated Administrator privileges."""
+    if sys.platform != "win32":
+        return os.getuid() == 0 if hasattr(os, "getuid") else False
+    try:
+        return ctypes.windll.shell32.IsUserAnAdmin() != 0
+    except Exception:
+        return False
+
+
+def relaunch_as_admin() -> bool:
+    """Relaunches the current script/binary with elevated Administrator privileges."""
+    if sys.platform != "win32":
+        return False
+    if is_admin():
+        return True
+
+    try:
+        if is_bundled():
+            exe = sys.executable
+            args = " ".join(f'"{a}"' for a in sys.argv[1:])
+        else:
+            exe = sys.executable
+            script_args = [f'"{a}"' for a in sys.argv]
+            args = " ".join(script_args)
+
+        rc = ctypes.windll.shell32.ShellExecuteW(
+            None,
+            "runas",
+            exe,
+            args,
+            None,
+            1,  # SW_SHOWNORMAL
+        )
+        return rc > 32
+    except Exception as e:
+        logger.error("Failed to relaunch as admin: %s", e)
+        return False
+
+
 def get_data_dir() -> Path:
     """Store certs, trusted keys, and logs in %LOCALAPPDATA%\\RemoteMouse on Windows."""
     if sys.platform == "win32":
