@@ -1,22 +1,40 @@
 import asyncio
 import base64
+import csv
 import json
 import secrets
 import socket
 import struct
 import sys
+import time
+from collections import deque
 from collections.abc import Callable
 from datetime import datetime, timezone
+from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from pynput.keyboard import Controller as KeyboardController
 from pynput.keyboard import Key
 from pynput.mouse import Button
 from pynput.mouse import Controller as MouseController
 
 from remote_mouse.config import PORT, WEB_INDEX_FILE, get_local_ip, is_admin, logger
+
+# ---------------------------------------------------------------------------
+# Latency Profiler — zero overhead when disabled
+# ---------------------------------------------------------------------------
+_profiling: bool = False          # toggled by /api/profile/toggle
+_server_log: deque = deque(maxlen=20_000)   # {seq, t, recv_ns, inject_ns}
+_profile_start_wall: float = 0.0  # wall-clock epoch at profile start (for report header)
+
+def _prof_record(seq: int, evt_type: str, recv_ns: int, inject_ns: int) -> None:
+    """Append one server-side timing entry. Called only when _profiling is True."""
+    _server_log.append({
+        "seq": seq, "t": evt_type,
+        "recv_ns": recv_ns, "inject_ns": inject_ns,
+    })
 from remote_mouse.security import (
     TRUSTED_LOCK,
     consume_migration_token,
@@ -33,6 +51,115 @@ app = FastAPI()
 mouse = MouseController()
 keyboard = KeyboardController()
 _qr_callback: Callable[[], None] | None = None
+
+# ---------------------------------------------------------------------------
+# Profile REST endpoints
+# ---------------------------------------------------------------------------
+
+@app.get("/api/profile/toggle")
+async def profile_toggle():
+    """Enable or disable latency profiling. Returns new state."""
+    global _profiling, _profile_start_wall
+    _profiling = not _profiling
+    if _profiling:
+        _server_log.clear()
+        _profile_start_wall = time.time()
+        logger.info("Latency profiling ENABLED")
+    else:
+        logger.info("Latency profiling DISABLED — %d server events captured", len(_server_log))
+    return JSONResponse({"profiling": _profiling, "server_events": len(_server_log)})
+
+
+@app.get("/api/profile/status")
+async def profile_status():
+    return JSONResponse({"profiling": _profiling, "server_events": len(_server_log)})
+
+
+@app.post("/api/profile/upload")
+async def profile_upload(payload: dict):
+    """
+    Receive client-side log from the phone, merge with server log, write report files.
+    Returns a summary and the path to the saved CSV.
+    """
+    client_log = payload.get("data", [])      # [{seq, t, cts_ms}, ...]
+    clock_offset_ms = payload.get("clock_offset_ms", 0.0)  # NTP-estimated offset
+
+    report_dir = Path.home() / ".remote_mouse"
+    report_dir.mkdir(parents=True, exist_ok=True)
+    ts_tag = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+
+    # Write raw client log
+    client_path = report_dir / f"profile_client_{ts_tag}.jsonl"
+    with client_path.open("w", encoding="utf-8") as f:
+        for entry in client_log:
+            f.write(json.dumps(entry) + "\n")
+
+    # Write raw server log
+    server_path = report_dir / f"profile_server_{ts_tag}.jsonl"
+    srv_entries = list(_server_log)
+    with server_path.open("w", encoding="utf-8") as f:
+        for entry in srv_entries:
+            f.write(json.dumps(entry) + "\n")
+
+    # Build merged CSV indexed by seq
+    srv_by_seq = {e["seq"]: e for e in srv_entries}
+    csv_path = report_dir / f"profile_report_{ts_tag}.csv"
+    matched = 0
+    rows = []
+    for ce in client_log:
+        seq = ce.get("seq")
+        se = srv_by_seq.get(seq)
+        if se is None:
+            continue
+        matched += 1
+        recv_ns  = se["recv_ns"]
+        inject_ns = se["inject_ns"]
+        cts_ms   = ce.get("cts_ms", 0.0)
+        # Estimated one-way transport latency using clock offset calibration
+        srv_recv_ms = recv_ns / 1_000_000.0
+        # adjusted client send time in server clock space
+        adj_send_ms = cts_ms + clock_offset_ms
+        transport_ms = srv_recv_ms - adj_send_ms
+        inject_overhead_ms = (inject_ns - recv_ns) / 1_000_000.0
+        rows.append({
+            "seq": seq,
+            "event": ce.get("t", "?"),
+            "client_send_ms": round(cts_ms, 3),
+            "srv_recv_ms": round(srv_recv_ms, 3),
+            "srv_inject_ms": round(inject_ns / 1_000_000.0, 3),
+            "transport_est_ms": round(transport_ms, 3),
+            "inject_overhead_ms": round(inject_overhead_ms, 3),
+            "total_est_ms": round(transport_ms + inject_overhead_ms, 3),
+        })
+
+    with csv_path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=[
+            "seq", "event", "client_send_ms", "srv_recv_ms", "srv_inject_ms",
+            "transport_est_ms", "inject_overhead_ms", "total_est_ms"
+        ])
+        writer.writeheader()
+        writer.writerows(rows)
+
+    # Summary stats
+    if rows:
+        transports = [r["transport_est_ms"] for r in rows]
+        overheads  = [r["inject_overhead_ms"] for r in rows]
+        totals     = [r["total_est_ms"] for r in rows]
+        summary = {
+            "matched_events": matched,
+            "transport_avg_ms":  round(sum(transports) / len(transports), 2),
+            "transport_p95_ms":  round(sorted(transports)[int(len(transports) * 0.95)], 2),
+            "inject_avg_ms":     round(sum(overheads) / len(overheads), 4),
+            "inject_p95_ms":     round(sorted(overheads)[int(len(overheads) * 0.95)], 4),
+            "total_avg_ms":      round(sum(totals) / len(totals), 2),
+            "total_p95_ms":      round(sorted(totals)[int(len(totals) * 0.95)], 2),
+            "report_csv":        str(csv_path),
+        }
+    else:
+        summary = {"matched_events": 0, "note": "No matching seq numbers found", "report_csv": str(csv_path)}
+
+    logger.info("Profile report written: %s (%d matched events)", csv_path, matched)
+    return JSONResponse(summary)
 
 if sys.platform == "win32":
     import ctypes
@@ -427,6 +554,12 @@ async def websocket_endpoint(ws: WebSocket):
             msg = json.loads(text)
             t = msg.get("type")
 
+            # Latency profiling — record recv timestamp before dispatch, inject timestamp after.
+            # Branch is completely dead when _profiling is False (single bool check per JSON msg).
+            _do_prof = _profiling and t not in ("ping_probe",)
+            _recv_ns = time.perf_counter_ns() if _do_prof else 0
+            _seq = msg.get("seq", -1) if _do_prof else -1
+
             if t == "move":
                 dx = int(msg.get("dx", 0))
                 dy = int(msg.get("dy", 0))
@@ -466,6 +599,18 @@ async def websocket_endpoint(ws: WebSocket):
                     keyboard.tap(media_obj)
             elif t == "show_qr" and _qr_callback is not None:
                 _qr_callback()
+            elif t == "ping_probe":
+                # Clock sync probe: echo immediately with server perf_counter_ns
+                await ws.send_json({
+                    "type": "pong_probe",
+                    "id": msg.get("id"),
+                    "srv_ns": time.perf_counter_ns(),
+                })
+                continue
+
+            # Record inject timestamp after OS call completes
+            if _do_prof and _seq >= 0:
+                _prof_record(_seq, t, _recv_ns, time.perf_counter_ns())
     except WebSocketDisconnect:
         pass
     finally:
