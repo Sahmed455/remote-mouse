@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [v1.2.1.0] - 2026-11-24
 
+### 📦 Dual MSIX Build Pipeline
+- **Store MSIX** (`*_Store.msix`): Unsigned package for direct upload to Microsoft Partner Center — Microsoft signs it, SAC trusts it, installs silently on any machine.
+- **Sideload MSIX** (`*_Sideload.msix`): Self-signed package for rapid local dev testing without waiting for Store certification (requires SAC off + one-time cert trust on target machine).
+- **Release Notes**: GitHub Release now includes an installation guide table distinguishing both variants.
+
 ### 🔒 Security & Code Signing
 - **Persistent Release Certificate**: Embedded a persistent 10-year Code Signing Certificate (`RemoteMouse_Persistent.pfx`) so all CI and local builds sign with the exact same trusted certificate instead of disposable runners.
 - **UIAccess Support**: Enabled `--windows-uac-uiaccess` in Nuitka compilation and GitHub Actions packaging, allowing installed MSIX applications to interact with Administrator terminals, Task Manager, Windows Security, and Authenticator popups.

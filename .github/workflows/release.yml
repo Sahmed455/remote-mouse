@@ -92,13 +92,13 @@ jobs:
 
           Compress-Archive -Path "dist\RemoteMouse" -DestinationPath "dist\RemoteMouse-Windows.zip"
 
-      - name: Build & Sign MSIX Package
+      - name: Build Sideload MSIX (self-signed, for local dev testing)
         shell: pwsh
         run: |
           $ver = "${{ steps.version_step.outputs.version }}"
           $arch = "x64"
-          $msixOut = "dist\RemoteMouse_${ver}_${arch}.msix"
-          $stagingDir = "build\msix_staging"
+          $msixOut = "dist\RemoteMouse_${ver}_${arch}_Sideload.msix"
+          $stagingDir = "build\msix_staging_sideload"
 
           # 1. Prepare staging
           New-Item -ItemType Directory -Force -Path $stagingDir | Out-Null
@@ -117,18 +117,49 @@ jobs:
           $signtool = (Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" |
               Sort-Object FullName -Descending | Select-Object -First 1).FullName
 
-          # 2. Pack MSIX
+          # Pack MSIX
           & $sdkBin pack /d $stagingDir /p $msixOut /o
-          if ($LASTEXITCODE -ne 0) { throw "MakeAppx failed" }
+          if ($LASTEXITCODE -ne 0) { throw "MakeAppx (sideload) failed" }
 
-          # 3. Sign with persistent release certificate
+          # Sign with persistent self-signed cert
           $pfx = "packaging\certs\RemoteMouse_Persistent.pfx"
           & $signtool sign /fd SHA256 /f $pfx /p "RemoteMouse2026!KeyWave" $msixOut
-          if ($LASTEXITCODE -ne 0) { throw "SignTool failed" }
+          if ($LASTEXITCODE -ne 0) { throw "SignTool (sideload) failed" }
 
-          # Copy persistent public cert for download alongside MSIX
+          # Copy public cert alongside sideload MSIX (user installs cert once, then MSIX)
           Copy-Item "packaging\certs\RemoteMouse_Persistent.cer" "dist\RemoteMouse_Sideload.cer"
-          Write-Host "MSIX packaged and signed with persistent cert: $msixOut" -ForegroundColor Green
+          Write-Host "Sideload MSIX built: $msixOut" -ForegroundColor Cyan
+
+      - name: Build Store MSIX (unsigned, for Microsoft Partner Center upload)
+        shell: pwsh
+        run: |
+          $ver = "${{ steps.version_step.outputs.version }}"
+          $arch = "x64"
+          $msixOut = "dist\RemoteMouse_${ver}_${arch}_Store.msix"
+          $stagingDir = "build\msix_staging_store"
+
+          # 1. Prepare staging — use a CLEAN (unsigned) copy of the EXE
+          #    The Store re-signs everything; uploading a pre-signed exe causes
+          #    "unexpected signature" errors during Partner Center validation.
+          New-Item -ItemType Directory -Force -Path $stagingDir | Out-Null
+          Copy-Item -Recurse -Force "dist\RemoteMouse\*" $stagingDir
+          Copy-Item "packaging\msix\AppxManifest.xml" "$stagingDir\AppxManifest.xml"
+          Copy-Item -Recurse -Force "packaging\msix\assets" "$stagingDir\Assets"
+
+          # Update Version in staged manifest
+          [xml]$xml = Get-Content "$stagingDir\AppxManifest.xml"
+          $xml.Package.Identity.Version = $ver
+          $xml.Save("$stagingDir\AppxManifest.xml")
+
+          # Locate MakeAppx
+          $sdkBin = (Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\makeappx.exe" |
+              Sort-Object FullName -Descending | Select-Object -First 1).FullName
+
+          # Pack MSIX — NO signing step (Partner Center signs with Microsoft cert)
+          & $sdkBin pack /d $stagingDir /p $msixOut /o
+          if ($LASTEXITCODE -ne 0) { throw "MakeAppx (store) failed" }
+
+          Write-Host "Store MSIX built (unsigned, ready for Partner Center): $msixOut" -ForegroundColor Green
 
       - name: Upload Artifacts (Actions Run)
         uses: actions/upload-artifact@v4
@@ -136,14 +167,28 @@ jobs:
           name: RemoteMouse-Packages
           path: |
             dist/RemoteMouse-Windows.zip
-            dist/*.msix
-            dist/*.cer
+            dist/*_Sideload.msix
+            dist/*_Store.msix
+            dist/RemoteMouse_Sideload.cer
 
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
+          body: |
+            ## DeviLX KeyWave ${{ steps.version_step.outputs.version }}
+
+            ### Installation Options
+            | File | Use for |
+            |------|---------|
+            | `*_Store.msix` | **Microsoft Store submission** (upload to Partner Center) |
+            | `*_Sideload.msix` | **Local dev testing** (requires SAC off + one-time cert trust) |
+            | `RemoteMouse_Sideload.cer` | Trust certificate for sideload installs |
+            | `RemoteMouse-Windows.zip` | Portable ZIP (no install needed) |
+
+            > **For sideload**: Install `RemoteMouse_Sideload.cer` to `LocalMachine\Root` and `LocalMachine\TrustedPeople` first, then install the sideload MSIX.
           files: |
             dist/RemoteMouse-Windows.zip
-            dist/*.msix
-            dist/*.cer
+            dist/*_Sideload.msix
+            dist/*_Store.msix
+            dist/RemoteMouse_Sideload.cer
