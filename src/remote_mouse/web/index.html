@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -69,7 +69,7 @@
       border-radius: 6px; padding: 4px 8px; font-size: 11px; font-weight: 600;
     }
 
-    /* â”€â”€ Latency Profiler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+    /* ── Latency Profiler ─────────────────────────────────────── */
     #profiler-panel {
       display: none; margin: 0 10px 4px; padding: 10px 12px;
       background: #0d1117; border: 1px solid #22c55e44; border-radius: 12px;
@@ -312,31 +312,32 @@
       <span id="status-text">Initializing key...</span>
     </div>
     <div class="media-bar">
-      <button class="icon-btn" data-media="mute" title="Mute">ðŸ”‡</button>
-      <button class="icon-btn" data-media="vol_down" title="Volume Down">ðŸ”‰</button>
-      <button class="icon-btn" data-media="vol_up" title="Volume Up">ðŸ”Š</button>
-      <button class="icon-btn" data-media="prev" title="Previous">â®</button>
-      <button class="icon-btn" data-media="play_pause" title="Play/Pause">â¯</button>
-      <button class="icon-btn" data-media="next" title="Next">â­</button>
+      <button class="icon-btn" data-media="mute" title="Mute">🔇</button>
+      <button class="icon-btn" data-media="vol_down" title="Volume Down">🔉</button>
+      <button class="icon-btn" data-media="vol_up" title="Volume Up">🔊</button>
+      <button class="icon-btn" data-media="prev" title="Previous">⏮</button>
+      <button class="icon-btn" data-media="play_pause" title="Play/Pause">⏯</button>
+      <button class="icon-btn" data-media="next" title="Next">⏭</button>
       <button class="icon-btn" id="qr-popup-btn" title="Open QR on PC">QR</button>
-      <button class="icon-btn" id="airmouse-toggle" title="Toggle Air Mouse Mode">ðŸŽ¯ Air</button>
-      <button class="icon-btn" id="settings-toggle" title="Mouse Settings">âš™</button>
+      <button class="icon-btn" id="airmouse-toggle" title="Toggle Air Mouse Mode">🎯 Air</button>
+      <button class="icon-btn" id="settings-toggle" title="Mouse Settings">⚙</button>
+      <button class="icon-btn" id="profiler-toggle" title="Latency Profiler">📡</button>
     </div>
   </div>
 
   <!-- Latency Profiler Panel -->
   <div id="profiler-panel">
     <div class="prof-row">
-      <span class="prof-badge" id="prof-badge">â¸ Idle</span>
-      <span class="prof-stat">Events: <b id="prof-count">0</b> &nbsp;|&nbsp; Clock offset: <b id="prof-offset">â€”</b> ms</span>
+      <span class="prof-badge" id="prof-badge">⏸ Idle</span>
+      <span class="prof-stat">Events: <b id="prof-count">0</b> &nbsp;|&nbsp; Clock offset: <b id="prof-offset">—</b> ms</span>
     </div>
     <div class="prof-row">
-      <span class="prof-stat">Avg RTT: <b id="prof-rtt">â€”</b> ms &nbsp;|&nbsp; Avg inject: <b id="prof-inject">â€”</b> Âµs</span>
+      <span class="prof-stat">Avg RTT: <b id="prof-rtt">—</b> ms &nbsp;|&nbsp; Avg inject: <b id="prof-inject">—</b> µs</span>
     </div>
     <div class="prof-row" style="gap:6px">
-      <button class="prof-btn start" id="prof-start-btn">â–¶ Start</button>
-      <button class="prof-btn stop"  id="prof-stop-btn"  disabled>â¹ Stop</button>
-      <button class="prof-btn send"  id="prof-send-btn"  disabled>ðŸ“¤ Send to PC</button>
+      <button class="prof-btn start" id="prof-start-btn">▶ Start</button>
+      <button class="prof-btn stop"  id="prof-stop-btn"  disabled>⏹ Stop</button>
+      <button class="prof-btn send"  id="prof-send-btn"  disabled>📤 Send to PC</button>
     </div>
     <div class="prof-stat" id="prof-result" style="display:none; padding-top:4px; border-top:1px solid #1e2733;"></div>
   </div>
@@ -345,7 +346,7 @@
     <div class="setting-row">
       <label for="sens-slider">Mouse Speed</label>
       <div class="slider-wrap">
-        <button class="step-btn" id="sens-minus">âˆ’</button>
+        <button class="step-btn" id="sens-minus">−</button>
         <input id="sens-slider" type="range" min="0.5" max="5.0" step="0.1" />
         <button class="step-btn" id="sens-plus">+</button>
         <span class="val-pill" id="sens-val">1.9x</span>
@@ -379,46 +380,46 @@
       <label class="toggle-label"><input type="checkbox" id="invert-air-y" /> Invert Air Y</label>
     </div>
     <div class="key-info">
-      <span id="device-id-label">Key ID: â€”</span>
+      <span id="device-id-label">Key ID: —</span>
       <button class="danger-btn" id="reset-key-btn">Regenerate Key</button>
     </div>
     <div id="wifi-handoff-box" class="wifi-handoff-box">
       <div class="wifi-desc">Connected via USB. Switch to wireless without re-entering PIN:</div>
-      <button id="wifi-switch-btn" class="wifi-btn">ðŸ“¶ Switch to Wireless (Wi-Fi)</button>
+      <button id="wifi-switch-btn" class="wifi-btn">📶 Switch to Wireless (Wi-Fi)</button>
     </div>
   </div>
 
   <div id="pad">
     <span id="drag-badge">DRAGGING</span>
     <div id="touch-hints">
-      <div>1-finger: Move Â· Tap: Click Â· 2x Tap &amp; Hold: Drag</div>
-      <div>2-finger: Scroll Â· 2-finger Tap: Right Click</div>
+      <div>1-finger: Move · Tap: Click · 2x Tap &amp; Hold: Drag</div>
+      <div>2-finger: Scroll · 2-finger Tap: Right Click</div>
     </div>
     <div id="airmouse-deck" style="display: none;">
       <div class="air-header">
-        <span class="air-status-pill" id="air-status-badge">ðŸŽ¯ Air Mouse Active</span>
+        <span class="air-status-pill" id="air-status-badge">🎯 Air Mouse Active</span>
         <div style="display: flex; gap: 4px;">
-          <button class="air-calib-btn" id="air-inv-x-btn" title="Flip horizontal axis">â‡„ Inv X</button>
-          <button class="air-calib-btn" id="air-inv-y-btn" title="Flip vertical axis">â‡… Inv Y</button>
-          <button class="air-calib-btn" id="air-calib-btn" title="Re-zero orientation reference">ðŸŽ¯ Center</button>
+          <button class="air-calib-btn" id="air-inv-x-btn" title="Flip horizontal axis">⇄ Inv X</button>
+          <button class="air-calib-btn" id="air-inv-y-btn" title="Flip vertical axis">⇅ Inv Y</button>
+          <button class="air-calib-btn" id="air-calib-btn" title="Re-zero orientation reference">🎯 Center</button>
         </div>
       </div>
       <div class="air-grid">
         <button class="air-btn air-btn-primary" id="air-left-btn">
-          <span class="air-btn-icon">ðŸ‘†</span>
+          <span class="air-btn-icon">👆</span>
           <span class="air-btn-text">Left Click</span>
           <span class="air-btn-sub">Hold to Drag</span>
         </button>
         <div class="air-center-col">
           <div class="air-wheel" id="air-wheel" title="Slide up/down to scroll">
-            <span class="air-wheel-arrow">â–²</span>
+            <span class="air-wheel-arrow">▲</span>
             <span class="air-wheel-label">Scroll</span>
-            <span class="air-wheel-arrow">â–¼</span>
+            <span class="air-wheel-arrow">▼</span>
           </div>
           <button class="air-btn air-btn-mid" id="air-mid-btn">Middle</button>
         </div>
         <button class="air-btn air-btn-secondary" id="air-right-btn">
-          <span class="air-btn-icon">ðŸ‘‰</span>
+          <span class="air-btn-icon">👉</span>
           <span class="air-btn-text">Right Click</span>
         </button>
       </div>
@@ -448,17 +449,17 @@
         <button class="key-btn" data-key="end">End</button>
         <button class="key-btn" data-key="page_down" data-repeat="1">PgDn</button>
         <button class="key-btn" data-key="print_screen">PrtSc</button>
-        <button class="key-btn" data-key="win">âŠž Win</button>
+        <button class="key-btn" data-key="win">⊞ Win</button>
         <button class="key-btn" data-key="insert">Ins</button>
-        <button class="key-btn" data-key="backspace" data-repeat="1">âŒ«</button>
+        <button class="key-btn" data-key="backspace" data-repeat="1">⌫</button>
       </div>
       <div class="dpad">
         <div class="dpad-spacer"></div>
-        <button class="key-btn arrow-btn" data-key="up" data-repeat="1">â–²</button>
+        <button class="key-btn arrow-btn" data-key="up" data-repeat="1">▲</button>
         <div class="dpad-spacer"></div>
-        <button class="key-btn arrow-btn" data-key="left" data-repeat="1">â—€</button>
-        <button class="key-btn arrow-btn" data-key="down" data-repeat="1">â–¼</button>
-        <button class="key-btn arrow-btn" data-key="right" data-repeat="1">â–¶</button>
+        <button class="key-btn arrow-btn" data-key="left" data-repeat="1">◀</button>
+        <button class="key-btn arrow-btn" data-key="down" data-repeat="1">▼</button>
+        <button class="key-btn arrow-btn" data-key="right" data-repeat="1">▶</button>
       </div>
     </div>
   </div>
@@ -470,8 +471,8 @@
     <button class="mod-btn" data-mod="win">Win</button>
     <button class="mod-btn" data-key="tab">Tab</button>
     <button class="mod-btn" data-key="esc">Esc</button>
-    <button class="mod-btn" id="fn-toggle">Fn âœ›</button>
-    <button class="mod-btn kb-btn" id="kb-toggle">âŒ¨</button>
+    <button class="mod-btn" id="fn-toggle">Fn ✛</button>
+    <button class="mod-btn kb-btn" id="kb-toggle">⌨</button>
   </div>
 
   <div class="click-bar">
@@ -485,7 +486,7 @@
     <div class="pin-card">
       <h3>Pair This Device</h3>
       <p>Enter the one-time 6-digit PIN from your PC tray popup. After pairing, this origin reconnects automatically using its ECDSA key.</p>
-      <input id="pin-field" type="tel" maxlength="6" inputmode="numeric" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢" />
+      <input id="pin-field" type="tel" maxlength="6" inputmode="numeric" placeholder="••••••" />
       <button id="pin-submit">Pair &amp; Trust Device</button>
       <div id="pin-error"></div>
       <div class="fp-tag" id="pin-fp-tag"></div>
@@ -763,7 +764,7 @@
         let msg;
         try { msg = JSON.parse(event.data); } catch { return; }
 
-        // Route profiler pong messages before the main auth handler
+        // Route profiler clock-sync pong before the auth handler
         if (msg.type === "pong_probe") {
           if (window._profHandlePong) window._profHandlePong(msg);
           return;
@@ -797,8 +798,8 @@
           statusDot.classList.add("ok");
           const isUsb = location.hostname === "localhost" || location.hostname === "127.0.0.1";
           const tag = isUsb ? "USB" : "Wi-Fi";
-          const adminTag = msg.is_admin ? " Â· ðŸ›¡ï¸ Admin" : "";
-          statusText.textContent = `ðŸ”’ ${tag}${adminTag} Â· ${identity.deviceId.slice(0, 6)}`;
+          const adminTag = msg.is_admin ? " · 🛡️ Admin" : "";
+          statusText.textContent = `🔒 ${tag}${adminTag} · ${identity.deviceId.slice(0, 6)}`;
 
           // Check if connected via USB to display Switch to Wi-Fi button
           const wifiBox = document.getElementById("wifi-handoff-box");
@@ -844,7 +845,7 @@
 
     const send = (data) => {
       if (ws && ws.readyState === WebSocket.OPEN && authenticated) {
-        // Latency profiling: stamp seq + client timestamp when profiling is active
+        // Stamp seq + client timestamp when profiling is active (zero cost when off)
         if (_prof.active && data.type && data.type !== "ping_probe" && _prof.log.length < 20_000) {
           data.seq = _prof.seq;
           data.cts_ms = performance.now();
@@ -974,13 +975,13 @@
     function updateAirMouseStatus(az, pt) {
       if (!airMouseActive) return;
       if (airMousePaused) {
-        airStatusBadge.textContent = "â¸ Paused (Keyboard)";
+        airStatusBadge.textContent = "⏸ Paused (Keyboard)";
         airStatusBadge.classList.add("paused");
       } else if (az !== undefined && pt !== undefined) {
-        airStatusBadge.textContent = `ðŸŽ¯ ${az.toFixed(0)}Â° / ${pt.toFixed(0)}Â°`;
+        airStatusBadge.textContent = `🎯 ${az.toFixed(0)}° / ${pt.toFixed(0)}°`;
         airStatusBadge.classList.remove("paused");
       } else {
-        airStatusBadge.textContent = "ðŸŽ¯ Air Mouse Active";
+        airStatusBadge.textContent = "🎯 Air Mouse Active";
         airStatusBadge.classList.remove("paused");
       }
     }
@@ -1037,7 +1038,7 @@
       }
 
       // 1. Azimuth (Compass Alpha):
-      // On mobile browsers, turning right increases alpha (0Â° -> 360Â° clockwise)
+      // On mobile browsers, turning right increases alpha (0° -> 360° clockwise)
       let dAzimuth = (e.alpha - lastOrientation.alpha);
       if (dAzimuth > 180) dAzimuth -= 360;
       if (dAzimuth < -180) dAzimuth += 360;
@@ -1119,7 +1120,7 @@
       pendingDx = 0;
       pendingDy = 0;
       send({ type: "center_cursor" });
-      airStatusBadge.textContent = "ðŸŽ¯ Centered";
+      airStatusBadge.textContent = "🎯 Centered";
       if (navigator.vibrate) navigator.vibrate(35);
       setTimeout(updateAirMouseStatus, 700);
     });
@@ -1486,52 +1487,39 @@
     });
 
     // ── Latency Profiler ──────────────────────────────────────────────────
-    // All profiler state lives here — zero impact on the normal send() path.
     const _prof = {
-      active: false,          // currently recording
-      seq: 0,                 // monotonically increasing event counter
-      log: [],                // [{seq, t, cts_ms}] — phone-side buffer
-      clockOffsetMs: 0,       // estimated client→server clock offset
-      rttSamples: [],         // last N round-trip times for display
-      pongMap: new Map(),     // ping_id → {sent_ms, resolve}
+      active: false, seq: 0, log: [], clockOffsetMs: 0,
+      rttSamples: [], pongMap: new Map(),
     };
-    const MAX_PROF_EVENTS = 20_000;
 
-    // DOM refs
-    const profilerPanel   = document.getElementById("profiler-panel");
-    const profilerToggle  = document.getElementById("profiler-toggle");
-    const profBadge       = document.getElementById("prof-badge");
-    const profCount       = document.getElementById("prof-count");
-    const profOffset      = document.getElementById("prof-offset");
-    const profRtt         = document.getElementById("prof-rtt");
-    const profInject      = document.getElementById("prof-inject");
-    const profStartBtn    = document.getElementById("prof-start-btn");
-    const profStopBtn     = document.getElementById("prof-stop-btn");
-    const profSendBtn     = document.getElementById("prof-send-btn");
-    const profResult      = document.getElementById("prof-result");
+    const profilerPanel  = document.getElementById("profiler-panel");
+    const profilerToggle = document.getElementById("profiler-toggle");
+    const profBadge      = document.getElementById("prof-badge");
+    const profCount      = document.getElementById("prof-count");
+    const profOffset     = document.getElementById("prof-offset");
+    const profRtt        = document.getElementById("prof-rtt");
+    const profInject     = document.getElementById("prof-inject");
+    const profStartBtn   = document.getElementById("prof-start-btn");
+    const profStopBtn    = document.getElementById("prof-stop-btn");
+    const profSendBtn    = document.getElementById("prof-send-btn");
+    const profResult     = document.getElementById("prof-result");
 
     profilerToggle.addEventListener("click", () => {
       const open = profilerPanel.classList.toggle("open");
       profilerToggle.classList.toggle("active", open);
     });
 
-    // Handle pong_probe messages (injected into the main WS message handler below)
     function _handlePongProbe(msg) {
       const entry = _prof.pongMap.get(msg.id);
       if (!entry) return;
       _prof.pongMap.delete(msg.id);
       const rtt = performance.now() - entry.sent_ms;
-      // NTP-style offset: offset = ((srv_ns/1e6 - sent_ms) + (srv_ns/1e6 - recv_ms)) / 2
-      // Simplified: offset ≈ server_mid_ms - client_mid_ms
-      const clientMid = entry.sent_ms + rtt / 2;
-      const srvMs = msg.srv_ns / 1_000_000;  // server uses perf_counter_ns relative epoch
-      // We store the correction as: adjusted_client_ms + offset = server_ms
       _prof.rttSamples.push(rtt);
       if (_prof.rttSamples.length > 20) _prof.rttSamples.shift();
-      entry.resolve({ rtt, srvMs, clientMid });
+      entry.resolve({ rtt });
     }
+    window._profHandlePong = _handlePongProbe;
 
-    // Send one ping, return {rtt, srvMs, clientMid}
     function _pingProbe() {
       return new Promise((resolve) => {
         if (!ws || ws.readyState !== WebSocket.OPEN) { resolve(null); return; }
@@ -1543,28 +1531,21 @@
       });
     }
 
-    // Run 5 calibration pings, compute median offset
     async function _calibrateClock() {
-      const samples = [];
+      const rtts = [];
       for (let i = 0; i < 5; i++) {
         const r = await _pingProbe();
-        if (r) samples.push(r);
+        if (r) rtts.push(r.rtt);
         await new Promise(res => setTimeout(res, 30));
       }
-      if (!samples.length) return 0;
-      // offset = srvMs - clientMid  (how much to add to client time to get server time)
-      // But srv_ns is perf_counter_ns — it's not wall clock. We use RTT/2 as one-way estimate.
-      const rtts = samples.map(s => s.rtt).sort((a, b) => a - b);
-      const medianRtt = rtts[Math.floor(rtts.length / 2)];
       _prof.rttSamples = rtts;
-      return medianRtt / 2;  // estimated one-way latency as clock offset proxy
+      return rtts.length ? rtts.sort((a,b)=>a-b)[Math.floor(rtts.length/2)] / 2 : 0;
     }
 
     function _updateProfUI() {
       profCount.textContent = _prof.log.length;
       if (_prof.rttSamples.length) {
-        const avg = _prof.rttSamples.reduce((a, b) => a + b, 0) / _prof.rttSamples.length;
-        profRtt.textContent = avg.toFixed(1);
+        profRtt.textContent = (_prof.rttSamples.reduce((a,b)=>a+b,0)/_prof.rttSamples.length).toFixed(1);
       }
       profOffset.textContent = _prof.clockOffsetMs.toFixed(2);
     }
@@ -1579,22 +1560,12 @@
       profStartBtn.disabled = true;
       profBadge.textContent = "⏳ Calibrating…";
       profBadge.className = "prof-badge";
-
-      // 1. Tell server to start profiling
       await fetch("/api/profile/toggle");
-
-      // 2. Calibrate clock offset
       _prof.clockOffsetMs = await _calibrateClock();
       _updateProfUI();
-
-      // 3. Clear phone buffer and start recording
-      _prof.log = [];
-      _prof.seq = 0;
-      _prof.active = true;
-
+      _prof.log = []; _prof.seq = 0; _prof.active = true;
       profBadge.textContent = "● Recording";
       profBadge.className = "prof-badge recording";
-      profStartBtn.disabled = true;
       profStopBtn.disabled = false;
       profSendBtn.disabled = true;
       profilerToggle.className = "icon-btn prof-recording";
@@ -1609,8 +1580,6 @@
       profSendBtn.disabled = _prof.log.length === 0;
       profilerToggle.className = "icon-btn prof-active";
       _updateProfUI();
-
-      // Tell server to stop (toggle again)
       await fetch("/api/profile/toggle");
     });
 
@@ -1619,42 +1588,30 @@
       profSendBtn.disabled = true;
       profResult.style.display = "block";
       profResult.textContent = "📤 Uploading " + _prof.log.length + " events to PC…";
-
       try {
         const resp = await fetch("/api/profile/upload", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            data: _prof.log,
-            clock_offset_ms: _prof.clockOffsetMs,
-          }),
+          body: JSON.stringify({ data: _prof.log, clock_offset_ms: _prof.clockOffsetMs }),
         });
-        const result = await resp.json();
-        if (result.matched_events !== undefined) {
-          const lines = [
-            `✅ Report saved on PC`,
-            `📊 ${result.matched_events} matched events`,
-            `🛜 Transport avg: ${result.transport_avg_ms ?? "?"}ms · p95: ${result.transport_p95_ms ?? "?"}ms`,
-            `⚡ Inject avg: ${result.inject_avg_ms ?? "?"}ms · p95: ${result.inject_p95_ms ?? "?"}ms`,
-            `⏱ Total avg: ${result.total_avg_ms ?? "?"}ms · p95: ${result.total_p95_ms ?? "?"}ms`,
-            `📄 ${result.report_csv}`,
-          ];
-          profResult.textContent = lines.join("\n");
-          profInject.textContent = result.inject_avg_ms !== undefined
-            ? (result.inject_avg_ms * 1000).toFixed(0)
-            : "?";
-        } else {
-          profResult.textContent = JSON.stringify(result, null, 2);
-        }
+        const r = await resp.json();
+        profResult.textContent = r.matched_events !== undefined
+          ? [
+              "✅ Report saved on PC",
+              "📊 " + r.matched_events + " matched events",
+              "🛜 Transport avg: " + (r.transport_avg_ms ?? "?") + "ms · p95: " + (r.transport_p95_ms ?? "?") + "ms",
+              "⚡ Inject avg: " + (r.inject_avg_ms ?? "?") + "ms · p95: " + (r.inject_p95_ms ?? "?") + "ms",
+              "⏱ Total avg: " + (r.total_avg_ms ?? "?") + "ms · p95: " + (r.total_p95_ms ?? "?") + "ms",
+              "📄 " + r.report_csv,
+            ].join("\n")
+          : JSON.stringify(r, null, 2);
+        if (r.inject_avg_ms != null) profInject.textContent = (r.inject_avg_ms * 1000).toFixed(0);
       } catch (e) {
         profResult.textContent = "❌ Upload failed: " + e.message;
         profSendBtn.disabled = false;
       }
       profilerToggle.className = "icon-btn";
     });
-
-    // Handle pong_probe messages routed from main WS handler
-    window._profHandlePong = _handlePongProbe;
   </script>
 </body>
 </html>
