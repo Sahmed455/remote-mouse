@@ -2,21 +2,27 @@ name: Build & Package Windows App
 
 on:
   push:
-    branches:
-      - test
     tags:
       - "v*"
-  pull_request:
-    branches:
-      - main
-      - test
   workflow_dispatch:
+    inputs:
+      build_release:
+        description: "Generate release artifacts (ZIP & Store/Sideload MSIX)"
+        type: boolean
+        required: false
+        default: false
+      publish_prerelease:
+        description: "Publish a GitHub pre-release when dispatched from a branch"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: write
 
 jobs:
   build-windows:
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.build_release == true)
     runs-on: windows-latest
     steps:
       - name: Checkout code
@@ -177,9 +183,11 @@ jobs:
             dist/RemoteMouse_Sideload.cer
 
       - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.build_release == true && inputs.publish_prerelease == true)
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v{0}-test.{1}', steps.version_step.outputs.version, github.run_number) }}
+          prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}
           body: |
             ## DeviLX KeyWave ${{ steps.version_step.outputs.version }}
 
