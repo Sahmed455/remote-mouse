@@ -65,6 +65,11 @@ jobs:
             --include-package=remote_mouse `
             --include-package=uvicorn `
             --include-package=websockets `
+            --include-package=aiortc `
+            --include-package=aioice `
+            --include-package=pylibsrtp `
+            --include-package=google_crc32c `
+            --nofollow-import-to=av `
             --include-package=pynput `
             --include-package=pystray `
             --include-data-dir="src\remote_mouse\web=remote_mouse/web" `

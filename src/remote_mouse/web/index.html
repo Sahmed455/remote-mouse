@@ -741,6 +741,126 @@
     let ws = null;
     let authenticated = false;
     let reconnectTimer = null;
+    let rtcPc = null;
+    let rtcMoveDc = null;
+    let rtcReady = false;
+    let rtcTimeout = null;
+    let connStatusMeta = { tag: "Wi-Fi", adminTag: "" };
+
+    function renderConnStatus() {
+      if (!authenticated || !identity) return;
+      const transportTag = rtcReady ? " · UDP" : "";
+      statusText.textContent = `🔒 ${connStatusMeta.tag}${transportTag}${connStatusMeta.adminTag} · ${identity.deviceId.slice(0, 6)}`;
+    }
+
+    function closeWebRTC() {
+      clearTimeout(rtcTimeout);
+      rtcTimeout = null;
+      rtcReady = false;
+      if (rtcMoveDc) {
+        try {
+          rtcMoveDc.onopen = rtcMoveDc.onclose = rtcMoveDc.onerror = null;
+          rtcMoveDc.close();
+        } catch {}
+        rtcMoveDc = null;
+      }
+      if (rtcPc) {
+        try {
+          rtcPc.onicecandidate = rtcPc.oniceconnectionstatechange = rtcPc.onconnectionstatechange = null;
+          rtcPc.close();
+        } catch {}
+        rtcPc = null;
+      }
+      renderConnStatus();
+    }
+
+    async function initWebRTC() {
+      closeWebRTC();
+      if (typeof RTCPeerConnection === "undefined" || !ws || ws.readyState !== WebSocket.OPEN) return;
+      rtcTimeout = setTimeout(() => {
+        if (!rtcReady) closeWebRTC();
+      }, 5000);
+      try {
+        const pc = new RTCPeerConnection({ iceServers: [] });
+        rtcPc = pc;
+        const dc = pc.createDataChannel("mouse_move", { ordered: false, maxRetransmits: 0 });
+        dc.binaryType = "arraybuffer";
+        rtcMoveDc = dc;
+
+        dc.onopen = () => {
+          if (rtcMoveDc === dc) {
+            clearTimeout(rtcTimeout);
+            rtcTimeout = null;
+            rtcReady = true;
+            renderConnStatus();
+          }
+        };
+        dc.onclose = () => {
+          if (rtcMoveDc === dc) {
+            rtcReady = false;
+            renderConnStatus();
+          }
+        };
+        dc.onerror = () => {
+          if (rtcMoveDc === dc) {
+            rtcReady = false;
+            renderConnStatus();
+          }
+        };
+
+        pc.onicecandidate = (ev) => {
+          if (rtcPc !== pc || !ev.candidate || !ws || ws.readyState !== WebSocket.OPEN) return;
+          ws.send(JSON.stringify({
+            type: "rtc_ice",
+            candidate: ev.candidate.candidate,
+            sdpMid: ev.candidate.sdpMid,
+            sdpMLineIndex: ev.candidate.sdpMLineIndex,
+          }));
+        };
+
+        const handleIceFailure = () => {
+          if (rtcPc !== pc) return;
+          const iceState = pc.iceConnectionState;
+          const connState = pc.connectionState;
+          if (iceState === "failed" || iceState === "closed" || connState === "failed" || connState === "closed") {
+            closeWebRTC();
+          } else if (iceState === "disconnected") {
+            rtcReady = false;
+            renderConnStatus();
+          }
+        };
+        pc.oniceconnectionstatechange = handleIceFailure;
+        pc.onconnectionstatechange = handleIceFailure;
+
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+
+        // Wait briefly for local LAN host ICE candidates so most offers connect in one round-trip
+        if (pc.iceGatheringState !== "complete") {
+          await new Promise((resolve) => {
+            const timer = setTimeout(resolve, 250);
+            const onState = () => {
+              if (pc.iceGatheringState === "complete") {
+                clearTimeout(timer);
+                pc.removeEventListener("icegatheringstatechange", onState);
+                resolve();
+              }
+            };
+            pc.addEventListener("icegatheringstatechange", onState);
+          });
+        }
+
+        if (rtcPc === pc && ws && ws.readyState === WebSocket.OPEN && pc.localDescription) {
+          ws.send(JSON.stringify({
+            type: "rtc_offer",
+            sdp: pc.localDescription.sdp,
+            sdp_type: pc.localDescription.type,
+          }));
+        }
+      } catch {
+        closeWebRTC();
+      }
+    }
 
     function showPinPrompt(msg = "") {
       pinError.textContent = msg;
@@ -752,6 +872,7 @@
     function connect() {
       if (!identity) return;
       clearTimeout(reconnectTimer);
+      closeWebRTC();
       authenticated = false;
       statusDot.classList.remove("ok");
       statusText.textContent = "Verifying key...";
@@ -765,8 +886,26 @@
         try { msg = JSON.parse(event.data); } catch { return; }
 
         // Route profiler clock-sync pong before the auth handler
-        if (msg.type === "pong_probe") {
+        if (msg.t === "prof_pong" || msg.type === "prof_pong") {
           if (window._profHandlePong) window._profHandlePong(msg);
+          return;
+        }
+
+        if (msg.type === "rtc_answer") {
+          if (rtcPc && msg.sdp) {
+            try {
+              await rtcPc.setRemoteDescription(new RTCSessionDescription({
+                type: msg.sdp_type || "answer",
+                sdp: msg.sdp,
+              }));
+            } catch {
+              closeWebRTC();
+            }
+          }
+          return;
+        }
+        if (msg.type === "rtc_unavailable") {
+          closeWebRTC();
           return;
         }
 
@@ -797,9 +936,12 @@
           pinOverlay.classList.remove("visible");
           statusDot.classList.add("ok");
           const isUsb = location.hostname === "localhost" || location.hostname === "127.0.0.1";
-          const tag = isUsb ? "USB" : "Wi-Fi";
-          const adminTag = msg.is_admin ? " · 🛡️ Admin" : "";
-          statusText.textContent = `🔒 ${tag}${adminTag} · ${identity.deviceId.slice(0, 6)}`;
+          connStatusMeta = {
+            tag: isUsb ? "USB" : "Wi-Fi",
+            adminTag: msg.is_admin ? " · 🛡️ Admin" : "",
+          };
+          renderConnStatus();
+          if (!isUsb) initWebRTC();
 
           // Check if connected via USB to display Switch to Wi-Fi button
           const wifiBox = document.getElementById("wifi-handoff-box");
@@ -824,6 +966,7 @@
 
       ws.onclose = (e) => {
         authenticated = false;
+        closeWebRTC();
         statusDot.classList.remove("ok");
         if (e.code === 4001) {
           pendingPairingPin = "";
@@ -846,12 +989,11 @@
     const send = (data) => {
       if (ws && ws.readyState === WebSocket.OPEN && authenticated) {
         // Stamp seq + client timestamp when profiling is active (zero cost when off)
-        if (_prof.active && data.type && data.type !== "ping_probe" && _prof.log.length < 20_000) {
+        if (_prof.active && data.type && data.type !== "prof_ping" && _prof.log.length < 50_000) {
           data.seq = _prof.seq;
           data.cts_ms = performance.now();
           _prof.log.push({ seq: _prof.seq, t: data.type, cts_ms: data.cts_ms });
           _prof.seq++;
-          if (_prof.seq % 50 === 0) _updateProfUI();
         }
         ws.send(JSON.stringify(data));
       }
@@ -882,27 +1024,53 @@
       }
     })();
 
-    // High-performance binary motion transmission (5 bytes: 0x01, int16 dx, int16 dy)
+    // High-performance binary motion transmission:
+    //   Normal (5 bytes):   0x01, int16 dx, int16 dy
+    //   Profiled (9 bytes): 0x03 (mouse_move) / 0x04 (air_move), int16 dx, int16 dy, uint32 seq
     const moveBuffer = new ArrayBuffer(5);
     const moveView = new DataView(moveBuffer);
     moveView.setUint8(0, 0x01);
 
-    const sendMoveBinary = (dx, dy) => {
-      if (ws && ws.readyState === WebSocket.OPEN && authenticated) {
-        moveView.setInt16(1, Math.max(-32768, Math.min(32767, dx)), true);
-        moveView.setInt16(3, Math.max(-32768, Math.min(32767, dy)), true);
-        ws.send(moveBuffer);
-      }
-    };
+    const profMoveBuffer = new ArrayBuffer(9);
+    const profMoveView = new DataView(profMoveBuffer);
 
     let pendingDx = 0, pendingDy = 0, pendingScroll = 0;
+    let pendingMoveSamples = 0;
     let lastFastFlush = 0;
 
+    const sendMoveBinary = (dx, dy, coalescedCount = 1) => {
+      if (!authenticated) return;
+      const dcActive = rtcReady && rtcMoveDc && rtcMoveDc.readyState === "open";
+      const wsActive = ws && ws.readyState === WebSocket.OPEN;
+      if (!dcActive && !wsActive) return;
+
+      const clampedX = Math.max(-32768, Math.min(32767, dx));
+      const clampedY = Math.max(-32768, Math.min(32767, dy));
+      if (_prof.active && _prof.log.length < 50_000) {
+        const seq = _prof.seq++;
+        const ctsMs = performance.now();
+        const evtName = airMouseActive ? "air_move" : "mouse_move";
+        const rec = { seq, t: evtName, cts_ms: ctsMs };
+        if (coalescedCount > 1) rec.coalesced_count = coalescedCount;
+        _prof.log.push(rec);
+        profMoveView.setUint8(0, airMouseActive ? 0x04 : 0x03);
+        profMoveView.setInt16(1, clampedX, true);
+        profMoveView.setInt16(3, clampedY, true);
+        profMoveView.setUint32(5, seq, true);
+        if (dcActive) rtcMoveDc.send(profMoveBuffer);
+        else ws.send(profMoveBuffer);
+        return;
+      }
+      moveView.setInt16(1, clampedX, true);
+      moveView.setInt16(3, clampedY, true);
+      if (dcActive) rtcMoveDc.send(moveBuffer);
+      else ws.send(moveBuffer);
+    };
+
     function flushMotion() {
-      // Wi-Fi Backpressure Guard:
-      // Only hold back if actual network queue is backing up (> 512 bytes).
-      // A threshold of > 0 dropped 50% of frames due to normal socket pipeline latency.
-      if (ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount > 512) {
+      // Backpressure Guard on whichever motion transport is active (WebRTC DataChannel or WebSocket)
+      const moveTransport = (rtcReady && rtcMoveDc && rtcMoveDc.readyState === "open") ? rtcMoveDc : ws;
+      if (moveTransport && moveTransport.readyState === "open" && moveTransport.bufferedAmount > 512) {
         requestAnimationFrame(flushMotion);
         return;
       }
@@ -911,7 +1079,9 @@
       const ix = Math.round(pendingDx);
       const iy = Math.round(pendingDy);
       if (ix !== 0 || iy !== 0) {
-        sendMoveBinary(ix, iy);
+        const samples = pendingMoveSamples;
+        pendingMoveSamples = 0;
+        sendMoveBinary(ix, iy, samples);
         pendingDx -= ix;
         pendingDy -= iy;
       }
@@ -928,11 +1098,14 @@
       const now = performance.now();
       if (now - lastFastFlush >= 8) { // Up to 125Hz high-frequency flush
         lastFastFlush = now;
-        if (ws && ws.readyState === WebSocket.OPEN && authenticated && ws.bufferedAmount <= 512) {
+        const moveTransport = (rtcReady && rtcMoveDc && rtcMoveDc.readyState === "open") ? rtcMoveDc : ws;
+        if (authenticated && moveTransport && moveTransport.readyState === "open" && moveTransport.bufferedAmount <= 512) {
           const ix = Math.round(pendingDx);
           const iy = Math.round(pendingDy);
           if (ix !== 0 || iy !== 0) {
-            sendMoveBinary(ix, iy);
+            const samples = pendingMoveSamples;
+            pendingMoveSamples = 0;
+            sendMoveBinary(ix, iy, samples);
             pendingDx -= ix;
             pendingDy -= iy;
           }
@@ -1022,6 +1195,7 @@
       const sens = (settings.airSensitivity || 1.8) * 12.0;
       pendingDx += smoothedDx * sens;
       pendingDy += smoothedDy * sens;
+      if (_prof.active) pendingMoveSamples++;
       tryFastFlush();
     }
 
@@ -1084,6 +1258,7 @@
       smoothedDy = 0;
       pendingDx = 0;
       pendingDy = 0;
+      pendingMoveSamples = 0;
     }
 
     async function toggleAirMouse(forceState) {
@@ -1119,6 +1294,7 @@
       smoothedDy = 0;
       pendingDx = 0;
       pendingDy = 0;
+      pendingMoveSamples = 0;
       send({ type: "center_cursor" });
       airStatusBadge.textContent = "🎯 Centered";
       if (navigator.vibrate) navigator.vibrate(35);
@@ -1249,6 +1425,7 @@
         }
         pendingDx += dx * factor;
         pendingDy += dy * factor;
+        if (_prof.active) pendingMoveSamples++;
         tryFastFlush();
       } else if (touches.length === 2) {
         const dir = settings.naturalScroll ? 1 : -1;
@@ -1276,7 +1453,9 @@
       const ix = Math.round(pendingDx);
       const iy = Math.round(pendingDy);
       if (ix !== 0 || iy !== 0) {
-        sendMoveBinary(ix, iy);
+        const samples = pendingMoveSamples;
+        pendingMoveSamples = 0;
+        sendMoveBinary(ix, iy, samples);
         pendingDx -= ix;
         pendingDy -= iy;
       }
@@ -1509,37 +1688,44 @@
       profilerToggle.classList.toggle("active", open);
     });
 
-    function _handlePongProbe(msg) {
-      const entry = _prof.pongMap.get(msg.id);
+    function _handleProfPong(msg) {
+      const t0 = msg.t0;
+      const entry = _prof.pongMap.get(t0);
       if (!entry) return;
-      _prof.pongMap.delete(msg.id);
-      const rtt = performance.now() - entry.sent_ms;
-      _prof.rttSamples.push(rtt);
-      if (_prof.rttSamples.length > 20) _prof.rttSamples.shift();
-      entry.resolve({ rtt });
+      _prof.pongMap.delete(t0);
+      const t1 = performance.now();
+      const rtt_ms = t1 - t0;
+      const clock_offset_ms = (msg.srv_ns / 1e6) - (t0 + rtt_ms / 2);
+      entry.resolve({ rtt_ms, clock_offset_ms });
     }
-    window._profHandlePong = _handlePongProbe;
+    window._profHandlePong = _handleProfPong;
 
     function _pingProbe() {
       return new Promise((resolve) => {
         if (!ws || ws.readyState !== WebSocket.OPEN) { resolve(null); return; }
-        const id = Math.random().toString(36).slice(2);
-        const sent_ms = performance.now();
-        _prof.pongMap.set(id, { sent_ms, resolve });
-        ws.send(JSON.stringify({ type: "ping_probe", id }));
-        setTimeout(() => { _prof.pongMap.delete(id); resolve(null); }, 2000);
+        const t0 = performance.now();
+        _prof.pongMap.set(t0, { resolve });
+        ws.send(JSON.stringify({ t: "prof_ping", t0 }));
+        setTimeout(() => {
+          if (_prof.pongMap.has(t0)) {
+            _prof.pongMap.delete(t0);
+            resolve(null);
+          }
+        }, 2000);
       });
     }
 
     async function _calibrateClock() {
-      const rtts = [];
+      const samples = [];
       for (let i = 0; i < 5; i++) {
         const r = await _pingProbe();
-        if (r) rtts.push(r.rtt);
+        if (r) samples.push(r);
         await new Promise(res => setTimeout(res, 30));
       }
-      _prof.rttSamples = rtts;
-      return rtts.length ? rtts.sort((a,b)=>a-b)[Math.floor(rtts.length/2)] / 2 : 0;
+      _prof.rttSamples = samples.map(s => s.rtt_ms);
+      if (!samples.length) return 0;
+      const best = samples.reduce((a, b) => (b.rtt_ms < a.rtt_ms ? b : a));
+      return best.clock_offset_ms;
     }
 
     function _updateProfUI() {
@@ -1560,10 +1746,13 @@
       profStartBtn.disabled = true;
       profBadge.textContent = "⏳ Calibrating…";
       profBadge.className = "prof-badge";
-      await fetch("/api/profile/toggle");
+      await fetch("/api/profile/toggle?enable=true");
       _prof.clockOffsetMs = await _calibrateClock();
+      _prof.log = [];
+      _prof.seq = 0;
+      pendingMoveSamples = 0;
       _updateProfUI();
-      _prof.log = []; _prof.seq = 0; _prof.active = true;
+      _prof.active = true;
       profBadge.textContent = "● Recording";
       profBadge.className = "prof-badge recording";
       profStopBtn.disabled = false;
@@ -1580,7 +1769,7 @@
       profSendBtn.disabled = _prof.log.length === 0;
       profilerToggle.className = "icon-btn prof-active";
       _updateProfUI();
-      await fetch("/api/profile/toggle");
+      await fetch("/api/profile/toggle?enable=false");
     });
 
     profSendBtn.addEventListener("click", async () => {
@@ -1595,17 +1784,23 @@
           body: JSON.stringify({ data: _prof.log, clock_offset_ms: _prof.clockOffsetMs }),
         });
         const r = await resp.json();
-        profResult.textContent = r.matched_events !== undefined
-          ? [
-              "✅ Report saved on PC",
-              "📊 " + r.matched_events + " matched events",
-              "🛜 Transport avg: " + (r.transport_avg_ms ?? "?") + "ms · p95: " + (r.transport_p95_ms ?? "?") + "ms",
-              "⚡ Inject avg: " + (r.inject_avg_ms ?? "?") + "ms · p95: " + (r.inject_p95_ms ?? "?") + "ms",
-              "⏱ Total avg: " + (r.total_avg_ms ?? "?") + "ms · p95: " + (r.total_p95_ms ?? "?") + "ms",
-              "📄 " + r.report_csv,
-            ].join("\n")
-          : JSON.stringify(r, null, 2);
-        if (r.inject_avg_ms != null) profInject.textContent = (r.inject_avg_ms * 1000).toFixed(0);
+        if (r.matched_events !== undefined && r.rel_transport_jitter_ms) {
+          const jt = r.rel_transport_jitter_ms;
+          const ij = r.inject_overhead_ms;
+          const dt = r.server_recv_dt_ms;
+          const counts = Object.entries(r.event_counts || {}).map(([k, v]) => `${k}:${v}`).join(", ");
+          profResult.textContent = [
+            "✅ Report saved on PC",
+            `📊 ${r.matched_events} matched (${counts})`,
+            `🛜 Jitter p50:${jt.p50} p95:${jt.p95} p99:${jt.p99} max:${jt.max} ms`,
+            `⚡ Inject p50:${ij.p50} p95:${ij.p95} p99:${ij.p99} max:${ij.max} ms`,
+            `⏱ RecvΔt p50:${dt.p50} p95:${dt.p95} p99:${dt.p99} max:${dt.max} ms (>25ms: ${r.gaps_over_25ms})`,
+            `📄 ${r.report_csv}`,
+          ].join("\n");
+          if (ij.p50 != null) profInject.textContent = (ij.p50 * 1000).toFixed(0);
+        } else {
+          profResult.textContent = JSON.stringify(r, null, 2);
+        }
       } catch (e) {
         profResult.textContent = "❌ Upload failed: " + e.message;
         profSendBtn.disabled = false;
